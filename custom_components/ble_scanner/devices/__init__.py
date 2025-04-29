@@ -12,7 +12,7 @@ from custom_components.ble_scanner.const import (
 
 # Import specific handlers
 from custom_components.ble_scanner.devices.petkit_fountain import PetkitFountainHandler
-from custom_components.ble_scanner.devices.s06_soil_tester import S06SoilTesterHandler
+from custom_components.ble_scanner.devices import s_06_soil_tester
 from custom_components.ble_scanner.devices.base import BaseDeviceHandler
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
@@ -20,7 +20,7 @@ _LOGGER = logging.getLogger(LOGGER_NAME)
 # Map device types to their handler classes
 HANDLER_MAP: Dict[str, Type[BaseDeviceHandler]] = {
     DEVICE_TYPE_PETKIT_FOUNTAIN: PetkitFountainHandler,
-    DEVICE_TYPE_S06_SOIL_TESTER: S06SoilTesterHandler,
+    DEVICE_TYPE_S06_SOIL_TESTER: s_06_soil_tester.S06SoilTesterHandler,
 }
 
 def get_device_handler(device_type: str) -> Optional[Type[BaseDeviceHandler]]:

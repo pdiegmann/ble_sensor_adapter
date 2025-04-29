@@ -18,7 +18,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from ble_scanner.const import (
+from custom_components.ble_scanner.const import (
     DOMAIN,
     CONF_DEVICES,
     CONF_DEVICE_NAME,

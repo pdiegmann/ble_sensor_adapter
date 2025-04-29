@@ -8,8 +8,8 @@ from bleak import BleakClient
 from bleak.backends.device import BLEDevice
 from bleak.exc import BleakError
 
-from ble_scanner.devices.base import BaseDeviceHandler
-from ble_scanner.const import (
+from custom_components.ble_scanner.devices.base import BaseDeviceHandler
+from custom_components.ble_scanner.const import (
     LOGGER_NAME,
     KEY_S06_TEMP,
     KEY_S06_RH,

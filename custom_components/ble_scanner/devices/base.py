@@ -11,7 +11,7 @@ from bleak.exc import BleakError
 from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_ADDRESS, CONF_NAME
 
-from ble_scanner.const import ATTR_LAST_UPDATED, ATTR_RSSI
+from custom_components.ble_scanner.const import ATTR_LAST_UPDATED, ATTR_RSSI
 
 class BaseDeviceHandler:
     """Base class for handling active BLE connections and data parsing."""

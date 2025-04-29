@@ -9,8 +9,8 @@ from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.backends.device import BLEDevice
 from bleak.exc import BleakError
 
-from ble_scanner.devices.base import BaseDeviceHandler
-from ble_scanner.const import (
+from custom_components.ble_scanner.devices.base import BaseDeviceHandler
+from custom_components.ble_scanner.const import (
     LOGGER_NAME,
     KEY_PF_MODEL_CODE,
     KEY_PF_MODEL_NAME,

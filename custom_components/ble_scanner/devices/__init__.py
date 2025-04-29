@@ -4,16 +4,16 @@ from typing import Type, Optional, Dict, Any
 
 from homeassistant.core import HomeAssistant
 
-from ..const import (
+from ble_scanner.const import (
     LOGGER_NAME,
     DEVICE_TYPE_PETKIT_FOUNTAIN,
     DEVICE_TYPE_S06_SOIL_TESTER,
 )
 
 # Import specific handlers
-from .petkit_fountain import PetkitFountainHandler
-from .s06_soil_tester import S06SoilTesterHandler
-from .base import BaseDeviceHandler
+from ble_scanner.devices.petkit_fountain import PetkitFountainHandler
+from ble_scanner.devices.s06_soil_tester import S06SoilTesterHandler
+from ble_scanner.devices.base import BaseDeviceHandler
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 

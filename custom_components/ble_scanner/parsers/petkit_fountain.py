@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
 
-from ..const import (
+from ble_scanner.const import (
     LOGGER_NAME,
     KEY_PF_WATER_LEVEL, # Keep existing placeholders
     KEY_PF_FILTER_LIFE,

@@ -16,7 +16,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.helpers.debounce import Debouncer
 from homeassistant.const import CONF_ADDRESS, CONF_NAME
 
-from .const import (
+from ble_scanner.const import (
     DOMAIN,
     CONF_DEVICES,
     CONF_DEVICE_NAME,
@@ -28,9 +28,9 @@ from .const import (
     ATTR_RSSI, # Keep RSSI from discovery if possible
     LOGGER_NAME,
 )
-from .errors import DeviceNotFoundError, ParsingError, UnsupportedDeviceTypeError
+from ble_scanner.errors import DeviceNotFoundError, ParsingError, UnsupportedDeviceTypeError
 # Import device-specific active connection handlers (to be created)
-from .devices import get_device_handler, BaseDeviceHandler
+from ble_scanner.devices import get_device_handler, BaseDeviceHandler
 
 
 _LOGGER = logging.getLogger(LOGGER_NAME)

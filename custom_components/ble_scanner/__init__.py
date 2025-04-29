@@ -8,8 +8,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.const import Platform
 
-from .const import DOMAIN, CONF_DEVICES, CONF_LOG_LEVEL, LOGGER_NAME
-from .coordinator import BLEScannerCoordinator
+from ble_scanner.const import DOMAIN, CONF_DEVICES, CONF_LOG_LEVEL, LOGGER_NAME
+from ble_scanner.coordinator import BLEScannerCoordinator
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 

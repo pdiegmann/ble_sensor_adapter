@@ -5,13 +5,13 @@ from typing import Callable, Optional, Dict, Any
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
 
-from ..const import (
+from ble_scanner.const import (
     DEVICE_TYPE_PETKIT_FOUNTAIN,
     DEVICE_TYPE_S06_SOIL_TESTER,
     LOGGER_NAME
 )
-from .petkit_fountain import parse_petkit_fountain
-from .s_06_soil_tester import parse_s06_soil_tester
+from ble_scanner.parsers.petkit_fountain import parse_petkit_fountain
+from ble_scanner.parsers.s_06_soil_tester import parse_s06_soil_tester
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 

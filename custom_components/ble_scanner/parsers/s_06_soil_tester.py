@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
 
-from ..const import (
+from ble_scanner.const import (
     LOGGER_NAME,
     KEY_S06_TEMP,
     KEY_S06_RH, # Renamed from MOISTURE based on analysis

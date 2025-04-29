@@ -1,14 +1,14 @@
 {
   "domain": "ble_scanner",
   "name": "BLE Scanner (Active Connection)",
-  "documentation": "https://github.com/your_username/ha-ble-scanner",
-  "issue_tracker": "https://github.com/your_username/ha-ble-scanner/issues",
-  "codeowners": ["@your_username"],
+  "documentation": "https://github.com/pdiegmann/ble_sensor_adapter",
+  "issue_tracker": "https://github.com/pdiegmann/ble_sensor_adapter/issues",
+  "codeowners": ["@pdiegmann"],
   "requirements": ["bleak>=0.20.0"],
   "iot_class": "local_polling",
   "config_flow": true,
-  "version": "1.0.0",
-  "loggers": ["custom_components.ble_scanner"],
+  "version": "1.0.1",
+  "loggers": ["ble_scanner"],
   "bluetooth": [
     {
       "passive": false

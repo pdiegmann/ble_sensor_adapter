@@ -72,7 +72,7 @@ def parse_s06_soil_tester(device: BLEDevice, advertisement_data: AdvertisementDa
 
         # Based on _decode_s06 in the example main.py
         # Measurement Slot 1: Temperature (°C) - Bytes 17:19 (Big Endian)
-        temp_raw = int.from_bytes(data_to_parse[17:19], byteorder=\'big\')
+        temp_raw = int.from_bytes(data_to_parse[17:19], byteorder='big')
         # Check for invalid values (often max/min int values)
         if temp_raw == 0xFFFF or temp_raw == 0x0000:
              _LOGGER.debug("Ignoring invalid temperature value (0xFFFF or 0x0000)")
@@ -81,7 +81,7 @@ def parse_s06_soil_tester(device: BLEDevice, advertisement_data: AdvertisementDa
             parsed_data[KEY_S06_TEMP] = round(temp_raw / 100.0, 2)
 
         # Measurement Slot 2: Humidity (%) - Bytes 19:21 (Big Endian)
-        rh_raw = int.from_bytes(data_to_parse[19:21], byteorder=\'big\')
+        rh_raw = int.from_bytes(data_to_parse[19:21], byteorder='big')
         if rh_raw == 0xFFFF or rh_raw == 0x0000:
             _LOGGER.debug("Ignoring invalid humidity value (0xFFFF or 0x0000)")
             parsed_data[KEY_S06_RH] = None
@@ -89,7 +89,7 @@ def parse_s06_soil_tester(device: BLEDevice, advertisement_data: AdvertisementDa
             parsed_data[KEY_S06_RH] = round(rh_raw / 100.0, 2)
 
         # Measurement Slot 3: Pressure (hPa) - Bytes 21:23 (Big Endian)
-        pressure_raw = int.from_bytes(data_to_parse[21:23], byteorder=\'big\')
+        pressure_raw = int.from_bytes(data_to_parse[21:23], byteorder='big')
         if pressure_raw == 0xFFFF or pressure_raw == 0x0000:
             _LOGGER.debug("Ignoring invalid pressure value (0xFFFF or 0x0000)")
             parsed_data[KEY_S06_PRESSURE] = None

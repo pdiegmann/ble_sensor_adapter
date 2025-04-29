@@ -1,11 +1,10 @@
 """Config flow for BLE Scanner integration."""
 import logging
 import voluptuous as vol
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from homeassistant import config_entries
 from homeassistant.core import callback
-from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
@@ -18,6 +17,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
+# Use absolute imports consistently
 from custom_components.ble_scanner.const import (
     DOMAIN,
     CONF_DEVICES,
@@ -34,10 +34,11 @@ from custom_components.ble_scanner.const import (
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
-# Schema for individual device configuration
+# --- Schemas --- #
+
 DEVICE_SCHEMA = vol.Schema({
     vol.Required(CONF_DEVICE_NAME): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
-    vol.Optional(CONF_DEVICE_ADDRESS): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)), # Optional, user might use name
+    vol.Optional(CONF_DEVICE_ADDRESS): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
     vol.Required(CONF_DEVICE_TYPE): SelectSelector(
         SelectSelectorConfig(options=[SelectOptionDict(value=t, label=t) for t in SUPPORTED_DEVICE_TYPES], mode="dropdown")
     ),
@@ -46,85 +47,88 @@ DEVICE_SCHEMA = vol.Schema({
     ),
 })
 
-# Schema for the main configuration step (log level + devices)
-# We'll use options flow for devices later, initial setup just needs log level
-CONFIG_SCHEMA = vol.Schema({
+LOG_LEVEL_SCHEMA = vol.Schema({
     vol.Optional(CONF_LOG_LEVEL, default=DEFAULT_LOG_LEVEL): SelectSelector(
         SelectSelectorConfig(options=["debug", "info", "warning", "error", "critical"], mode="dropdown")
     )
 })
+
+# --- Main Config Flow --- #
 
 class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for BLE Scanner."""
 
     VERSION = 1
 
-    async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Handle the initial step."""
-        errors: Dict[str, str] = {}
-
+    async def async_step_user(self, user_input: Optional[Dict[str, Any]] = None) -> config_entries.FlowResult:
+        """Handle the initial setup step (only log level)."""
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
 
         if user_input is not None:
-            # Validation could be added here if needed
-            # For now, we just create the entry with the log level
-            # Devices will be configured via options flow
+            # Store log level in data, devices will be in options
             return self.async_create_entry(title="BLE Scanner", data=user_input, options={CONF_DEVICES: []})
 
         return self.async_show_form(
-            step_id="user", data_schema=CONFIG_SCHEMA, errors=errors
+            step_id="user", data_schema=LOG_LEVEL_SCHEMA
         )
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> "BLEScannerOptionsFlowHandler":
         """Get the options flow for this handler."""
         return BLEScannerOptionsFlowHandler(config_entry)
 
+# --- Options Flow --- #
 
 class BLEScannerOptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle BLE Scanner options."""
+    """Handle BLE Scanner options (Log Level and Devices)."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
         self.config_entry = config_entry
-        # Combine existing data and options for editing
-        self.current_config = dict(config_entry.data)
-        self.current_config.update(config_entry.options)
-        self.devices = self.current_config.get(CONF_DEVICES, [])
+        # Options contain both log_level and devices list
+        self.options = dict(config_entry.options)
+        # Ensure devices list exists
+        if CONF_DEVICES not in self.options:
+            self.options[CONF_DEVICES] = []
+        self.devices = self.options[CONF_DEVICES]
 
-    async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Manage the options."""
+    async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> config_entries.FlowResult:
+        """Manage the main options menu (Global Settings or Device Management)."""
+        # Streamlined menu
         return self.async_show_menu(
             step_id="init",
-            menu_options=["configure_global", "configure_devices"],
+            menu_options=["modify_log_level", "manage_devices"],
         )
 
-    async def async_step_configure_global(self, user_input: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Handle global settings."""
+    async def async_step_modify_log_level(self, user_input: Optional[Dict[str, Any]] = None) -> config_entries.FlowResult:
+        """Handle modification of the log level."""
         errors: Dict[str, str] = {}
 
         if user_input is not None:
-            # Update only the global settings, keep devices
-            updated_options = {**self.config_entry.options, **user_input}
-            _LOGGER.debug(f"Updating global options to: {updated_options}")
-            return self.async_create_entry(title="", data=updated_options)
+            # Update only the log level in options
+            self.options[CONF_LOG_LEVEL] = user_input[CONF_LOG_LEVEL]
+            _LOGGER.debug(f"Updating log level option to: {self.options[CONF_LOG_LEVEL]}")
+            # Create entry with updated options
+            return self.async_create_entry(title="", data=self.options)
 
-        global_schema = vol.Schema({
-            vol.Optional(CONF_LOG_LEVEL, default=self.current_config.get(CONF_LOG_LEVEL, DEFAULT_LOG_LEVEL)): SelectSelector(
+        # Use the schema defined earlier, pre-filling with current value
+        log_level_schema = vol.Schema({
+            vol.Optional(CONF_LOG_LEVEL, default=self.options.get(CONF_LOG_LEVEL, DEFAULT_LOG_LEVEL)): SelectSelector(
                 SelectSelectorConfig(options=["debug", "info", "warning", "error", "critical"], mode="dropdown")
             )
         })
 
         return self.async_show_form(
-            step_id="configure_global", data_schema=global_schema, errors=errors
+            step_id="modify_log_level", data_schema=log_level_schema, errors=errors
         )
 
-    async def async_step_configure_devices(self, user_input: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Show current devices and allow adding/removing."""
+    async def async_step_manage_devices(self, user_input: Optional[Dict[str, Any]] = None) -> config_entries.FlowResult:
+        """Show device list and offer actions (Add/Remove)."""
+        # This step now acts as the device management hub
         return self.async_show_menu(
-            step_id="configure_devices",
+            step_id="manage_devices",
             menu_options=["add_device", "remove_device"],
             description_placeholders={"devices_list": self._get_devices_list_str()}
         )
@@ -135,11 +139,20 @@ class BLEScannerOptionsFlowHandler(config_entries.OptionsFlow):
             return "No devices configured."
         lines = []
         for i, device in enumerate(self.devices):
-            identifier = device.get(CONF_DEVICE_ADDRESS, device.get(CONF_DEVICE_NAME, 'Unknown'))
-            lines.append(f"{i + 1}. {device.get(CONF_DEVICE_NAME, 'Unnamed')} ({identifier}) - Type: {device.get(CONF_DEVICE_TYPE)}, Interval: {device.get(CONF_POLLING_INTERVAL)}s")
+            # Use a consistent identifier (address if available, else name)
+            identifier = device.get(CONF_DEVICE_ADDRESS)
+            if not identifier:
+                 identifier = f"Name: {device.get(CONF_DEVICE_NAME, 'Unknown')}"
+            else:
+                 identifier = f"Address: {identifier}"
+
+            lines.append(
+                f"{i + 1}. {device.get(CONF_DEVICE_NAME, 'Unnamed')} ({identifier}) - "
+                f"Type: {device.get(CONF_DEVICE_TYPE)}, Interval: {device.get(CONF_POLLING_INTERVAL)}s"
+            )
         return "\n".join(lines)
 
-    async def async_step_add_device(self, user_input: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def async_step_add_device(self, user_input: Optional[Dict[str, Any]] = None) -> config_entries.FlowResult:
         """Handle adding a new device."""
         errors: Dict[str, str] = {}
 
@@ -147,27 +160,46 @@ class BLEScannerOptionsFlowHandler(config_entries.OptionsFlow):
             # Basic validation: Ensure name or address is provided
             if not user_input.get(CONF_DEVICE_NAME) and not user_input.get(CONF_DEVICE_ADDRESS):
                 errors["base"] = "name_or_address_required"
+            # Ensure address is unique if provided
+            elif user_input.get(CONF_DEVICE_ADDRESS) and any(
+                d.get(CONF_DEVICE_ADDRESS) == user_input.get(CONF_DEVICE_ADDRESS)
+                for d in self.devices
+            ):
+                 errors[CONF_DEVICE_ADDRESS] = "address_already_configured"
+            # Ensure name is unique if address is not provided
+            elif not user_input.get(CONF_DEVICE_ADDRESS) and any(
+                d.get(CONF_DEVICE_NAME) == user_input.get(CONF_DEVICE_NAME) and not d.get(CONF_DEVICE_ADDRESS)
+                for d in self.devices
+            ):
+                 errors[CONF_DEVICE_NAME] = "name_must_be_unique_without_address"
             else:
                 self.devices.append(user_input)
-                updated_options = {**self.config_entry.options, CONF_DEVICES: self.devices}
-                _LOGGER.debug(f"Adding device, updated options: {updated_options}")
-                return self.async_create_entry(title="", data=updated_options)
+                self.options[CONF_DEVICES] = self.devices # Update the list in options
+                _LOGGER.debug(f"Adding device, updated options: {self.options}")
+                # Create entry with updated options
+                return self.async_create_entry(title="", data=self.options)
 
         return self.async_show_form(
             step_id="add_device", data_schema=DEVICE_SCHEMA, errors=errors
         )
 
-    async def async_step_remove_device(self, user_input: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def async_step_remove_device(self, user_input: Optional[Dict[str, Any]] = None) -> config_entries.FlowResult:
         """Handle removing a device."""
         errors: Dict[str, str] = {}
 
         if not self.devices:
-             return self.async_abort(reason="no_devices_to_remove")
+             # Show message and return to manage_devices menu
+             return self.async_show_menu(
+                 step_id="manage_devices",
+                 menu_options=["add_device"], # Only show add if list is empty
+                 description_placeholders={"devices_list": "No devices configured to remove."}
+             )
 
-        device_options = {
-            str(i): f"{dev.get(CONF_DEVICE_NAME, 'Unnamed')} ({dev.get(CONF_DEVICE_ADDRESS, dev.get(CONF_DEVICE_NAME))})"
+        # Create options for the selector using index as key
+        device_options = [
+            SelectOptionDict(value=str(i), label=f"{dev.get(CONF_DEVICE_NAME, 'Unnamed')} ({dev.get(CONF_DEVICE_ADDRESS, dev.get(CONF_DEVICE_NAME))})")
             for i, dev in enumerate(self.devices)
-        }
+        ]
 
         if user_input is not None:
             try:
@@ -175,15 +207,16 @@ class BLEScannerOptionsFlowHandler(config_entries.OptionsFlow):
                 if 0 <= selected_index < len(self.devices):
                     removed_device = self.devices.pop(selected_index)
                     _LOGGER.debug(f"Removed device: {removed_device}")
-                    updated_options = {**self.config_entry.options, CONF_DEVICES: self.devices}
-                    return self.async_create_entry(title="", data=updated_options)
+                    self.options[CONF_DEVICES] = self.devices # Update the list in options
+                    # Create entry with updated options
+                    return self.async_create_entry(title="", data=self.options)
                 else:
                     errors["base"] = "invalid_selection"
             except (ValueError, KeyError):
                 errors["base"] = "invalid_selection"
 
         remove_schema = vol.Schema({
-            vol.Required("device_to_remove"): SelectSelector(SelectSelectorConfig(options=list(device_options.items()), mode="dropdown"))
+            vol.Required("device_to_remove"): SelectSelector(SelectSelectorConfig(options=device_options, mode="dropdown"))
         })
 
         return self.async_show_form(

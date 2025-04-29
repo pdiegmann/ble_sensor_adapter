@@ -19,17 +19,13 @@ from homeassistant.const import (
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     UnitOfTemperature,
     UnitOfTime,
-    CONCENTRATION_PARTS_PER_MILLION,
-    ELECTRIC_POTENTIAL_VOLT,
     UnitOfPressure,
-    UnitOfElectricPotential,
 )
 
 from .const import (
     DOMAIN,
     CONF_DEVICES,
     CONF_DEVICE_NAME,
-    CONF_DEVICE_ADDRESS,
     CONF_DEVICE_TYPE,
     CONF_POLLING_INTERVAL,
     DEFAULT_POLLING_INTERVAL,

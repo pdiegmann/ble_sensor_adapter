@@ -235,7 +235,7 @@ class BLEScannerCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         _LOGGER.info("Stopping BLE Scanner coordinator and disconnecting devices.")
         self._stopping = True
         # Cancel any pending refresh tasks
-        self.async_cancel_debounced_refresh() # Use the correct DataUpdateCoordinator method
+        self._unschedule_refresh() # Cancel the timer for the next scheduled update
 
         # Disconnect all handlers
         disconnect_tasks = []

@@ -25,10 +25,9 @@ import homeassistant.helpers.device_registry as dr # Import device registry help
 
 # Use absolute imports consistently
 from custom_components.ble_scanner.const import (
-    CONF_DEVICE_ADDRESS, # Keep this
-    # CONF_DEVICE_TYPE, # Remove type selection
-    # CONF_POLLING_INTERVAL, # Remove polling interval
-    # DEFAULT_POLLING_INTERVAL, # Remove polling interval
+    CONF_DEVICE_ADDRESS,
+    CONF_DEVICE_TYPE,
+    SUPPORTED_DEVICE_TYPES,
     DOMAIN,
     LOGGER_NAME,
 )
@@ -49,32 +48,6 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the initial step: discover and select a device."""
         errors: Dict[str, str] = {}
 
-        if user_input is not None:
-            address = user_input[CONF_DEVICE_ADDRESS]
-            await self.async_set_unique_id(address, raise_on_progress=False)
-            self._abort_if_unique_id_configured()
-
-            # Retrieve device name for title (best effort)
-            # Note: This relies on the device still being discoverable at this exact moment,
-            # which might not always be true. Consider storing discovered names temporarily.
-            title = address
-            try:
-                # Use async_scanner_devices which returns BLEDevice objects
-                scanner_devices = bluetooth.async_get_scanner(self.hass).discovered_devices
-                for device in scanner_devices:
-                    if device.address == address:
-                        title = device.name or address # Use name if available
-                        break
-            except Exception as e:
-                _LOGGER.warning(f"Could not retrieve device name for {address}: {e}")
-
-
-            _LOGGER.debug(f"Creating BLE Scanner entry for device: {title} ({address})")
-            return self.async_create_entry(
-                title=title,
-                data={CONF_DEVICE_ADDRESS: address},
-            )
-
         # Discover available devices not already configured
         discovered_devices = bluetooth.async_get_scanner(self.hass).discovered_devices
         configured_addresses = {
@@ -84,18 +57,62 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         available_devices = []
         for device in discovered_devices:
             if device.address not in configured_addresses:
-                 # Use device name if available, otherwise address
                 label = f"{device.name or 'Unknown Device'} ({dr.format_mac(device.address)})"
                 available_devices.append(
                     SelectOptionDict(value=device.address, label=label)
                 )
 
+        device_type_options = [
+            SelectOptionDict(value=dt, label=dt.replace("-", " ").title())
+            for dt in SUPPORTED_DEVICE_TYPES
+        ]
+
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_DEVICE_ADDRESS): vol.In([d.value for d in available_devices]),
+                vol.Required(CONF_DEVICE_TYPE): vol.In([d.value for d in device_type_options]),
+            }
+        )
+
+        if user_input is not None:
+            address = user_input[CONF_DEVICE_ADDRESS]
+            device_type = user_input[CONF_DEVICE_TYPE]
+            await self.async_set_unique_id(address, raise_on_progress=False)
+            self._abort_if_unique_id_configured()
+
+            # Retrieve device name for title (best effort)
+            title = address
+            try:
+                scanner_devices = bluetooth.async_get_scanner(self.hass).discovered_devices
+                for device in scanner_devices:
+                    if device.address == address:
+                        title = device.name or address
+                        break
+            except Exception as e:
+                _LOGGER.warning(f"Could not retrieve device name for {address}: {e}")
+
+            _LOGGER.debug(f"Creating BLE Scanner entry for device: {title} ({address}), type: {device_type}")
+            return self.async_create_entry(
+                title=title,
+                data={
+                    CONF_DEVICE_ADDRESS: address,
+                    CONF_DEVICE_TYPE: device_type,
+                },
+            )
+
         if not available_devices:
-            # TODO: Add "no_devices_found" to strings.json
             errors["base"] = "no_devices_found"
-            # Consider adding a manual entry option here or in a separate step
-            # For now, show error if no devices discovered/available
             return self.async_show_form(step_id="user", errors=errors, last_step=True)
+
+        if not device_type_options:
+            errors["base"] = "no_device_types"
+            return self.async_show_form(step_id="user", errors=errors, last_step=True)
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=schema,
+            errors=errors,
+        )
 
 
         # Sort devices by label for better UX

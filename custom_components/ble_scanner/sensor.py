@@ -280,15 +280,9 @@ class BLEDeviceSensor(CoordinatorEntity[BLEScannerCoordinator], SensorEntity):
         elif self._device_type == DEVICE_TYPE_S06_SOIL_TESTER:
             manufacturer = "Generic" # Or Efento? Based on format
 
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, self._device_id)},
-            "name": self._device_name,
-            "manufacturer": manufacturer,
-            "model": self._device_type,
-            "via_device": (DOMAIN, self.coordinator.entry.entry_id), # Link to the integration entry
-        }
-
+        # Device info will be automatically set by CoordinatorEntity based on the coordinator's device
         _LOGGER.debug(f"Initialized sensor: {self.unique_id} (Name: {self.name}, Device: {self._device_id})")
+
 
     def _get_sensor_friendly_name(self, key: str) -> str:
         """Generate a user-friendly name for the sensor key."""

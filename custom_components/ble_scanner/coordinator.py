@@ -131,7 +131,7 @@ class BLEScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
         """Stop the passive scanner."""
         _LOGGER.info("Stopping BLE passive scanner")
         if self._scanner_unregister_callback:
-            bluetooth.async_unregister_callback(self._scanner_unregister_callback)  # Use async_unregister_callback
+            self._scanner_unregister_callback()  # Correctly call the stored unregister callback
             self._scanner_unregister_callback = None
             _LOGGER.info("BLE scanner callback unregistered.")
         # Perform any other cleanup if needed

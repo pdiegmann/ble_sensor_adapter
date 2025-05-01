@@ -26,9 +26,10 @@
       "unknown": "[%key:common::config_flow::error::unknown%]"
     },
     "abort": {
-      "no_devices_found": "No Bluetooth LE devices found nearby. Ensure Bluetooth is enabled on your Home Assistant host and the device is powered on and discoverable.",
+      "no_devices_found": "No unconfigured Bluetooth devices found nearby.",
       "already_configured": "Device with address {address} is already configured.",
-      "unsupported_device": "This device was discovered but is not currently supported by the BLE Scanner integration."
+      "unsupported_device": "This device was discovered but is not currently supported by the BLE Scanner integration.",
+      "discovery_not_used": "This device was discovered via Bluetooth, but the integration setup was not initiated from the discovery."
     }
   },
   "options": {

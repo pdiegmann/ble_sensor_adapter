@@ -1,179 +1,163 @@
-"""DataUpdateCoordinator for the BLE Scanner integration using passive scanning."""
-# Removed asyncio as active connections are removed
+"""DataUpdateCoordinator for the BLE Scanner integration using active connections."""
 import logging
-from datetime import timedelta, datetime # Keep datetime for potential timestamping
-from typing import Any, Dict, Optional, Callable
+from datetime import timedelta, datetime
+from typing import Any, Dict
 
-# Removed async_timeout, bleak imports (BleakClient, BLEDevice, AdvertisementData, BleakError)
-
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.components import bluetooth
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_ADDRESS # Standard constant for MAC address
+
+# Import Bleak components
+from bleak import BleakClient, BleakError
+from bleak.backends.device import BLEDevice
 
 from custom_components.ble_scanner.const import (
     DOMAIN,
-    # Removed CONF_DEVICES, CONF_DEVICE_NAME, CONF_DEVICE_TYPE
-    CONF_POLLING_INTERVAL, # Keep for potential future use or cleanup interval
+    CONF_POLLING_INTERVAL,
     DEFAULT_POLLING_INTERVAL,
     ATTR_LAST_UPDATED,
     ATTR_RSSI,
     LOGGER_NAME,
+    CONF_DEVICE_ADDRESS, # Specific constant used in config flow
+    CONF_DEVICE_TYPE, # Constant for device type identification
 )
-# Removed DeviceNotFoundError, UnsupportedDeviceTypeError (handled differently)
-from custom_components.ble_scanner.errors import ParsingError
-# Import parsers instead of active handlers
-from custom_components.ble_scanner.parsers import get_parser, BaseParser
+# Import base handler and factory function (assuming it exists)
+# Ensure this path is correct and get_device_handler exists
+from custom_components.ble_scanner.devices import BaseDeviceHandler, get_device_handler
 
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
-# Data structure for coordinator.data: Dict[str, Dict[str, Any]]
-# Maps device address (lowercase) to a dictionary of its parsed sensor values
-CoordinatorData = Dict[str, Dict[str, Any]]
-
-# How long to wait before considering a device unavailable (seconds)
-DEVICE_UNAVAILABLE_TIMEOUT = 1800 # 30 minutes
+# Type hint for the data returned by the coordinator (data for a single device)
+CoordinatorData = Dict[str, Any]
 
 
-class BLEScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
-    """Class to manage BLE data via passive scanning."""
+class BleScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
+    """Class to manage fetching data from a specific BLE device."""
 
-    def __init__(self, hass: HomeAssistant, entry) -> None:
-        """Initialize."""
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Initialize the coordinator."""
         self.hass = hass
         self.entry = entry
-        # Use polling interval from data (set during config flow)
-        # Might be used for cleanup tasks later, not for scanning interval
-        self.polling_interval = entry.data.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
-        self._scanner_unregister_callback: Optional[Callable] = None
-        self._last_seen: Dict[str, datetime] = {} # Track last seen time for devices
+        self._device_address = entry.data[CONF_DEVICE_ADDRESS].lower() # Store device MAC
+        self._device_type = entry.data.get(CONF_DEVICE_TYPE) # Store device type
 
-        # Initialize with empty data
+        # Get polling interval from config entry, default if not set
+        polling_interval_seconds = entry.options.get(
+            CONF_POLLING_INTERVAL,
+            entry.data.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
+        )
+        # Ensure a minimum polling interval (e.g., 15 seconds)
+        update_interval = timedelta(seconds=max(15, polling_interval_seconds))
+
+        # Instantiate the appropriate device handler
+        # This assumes get_device_handler exists and returns a BaseDeviceHandler instance
+        # based on entry.data (which should contain type and potentially other config)
+        try:
+            # Pass the specific device config part of the entry data if needed
+            # Assuming entry.data contains necessary info like type, name, address
+            device_config = entry.data
+            self._device_handler: BaseDeviceHandler = get_device_handler(device_config)
+            # Use device name from handler if available, otherwise address
+            coordinator_name = f"{DOMAIN} {self._device_handler.name or self._device_address}"
+        except ImportError:
+             _LOGGER.error(f"Device handler module not found for type {self._device_type} ({self._device_address})", exc_info=True)
+             self._device_handler = None # Indicate handler is missing
+             coordinator_name = f"{DOMAIN} {self._device_address} (Handler Module Error)"
+        except Exception as e:
+            # Handle case where handler cannot be instantiated (e.g., unknown type in get_device_handler)
+            _LOGGER.error(f"Error getting device handler for {self._device_type} ({self._device_address}): {e}", exc_info=True)
+            self._device_handler = None # Indicate handler is missing
+            coordinator_name = f"{DOMAIN} {self._device_address} (Handler Init Error)"
+
+
         super().__init__(
             hass,
             _LOGGER,
-            name=DOMAIN,
-            # Update interval is not strictly needed for scanning,
-            # but can be used for periodic cleanup of old devices.
-            # Set it based on config, minimum 60s.
-            update_interval=timedelta(seconds=max(60, self.polling_interval)),
-            # No debouncer needed for event-driven updates
+            name=coordinator_name,
+            update_interval=update_interval,
         )
-
-    @callback
-    def _async_handle_bluetooth_event(
-        self,
-        service_info: bluetooth.BluetoothServiceInfoBleak,
-        change: bluetooth.BluetoothChange,
-    ) -> None:
-        """Handle discovery updates from Bluetooth integration."""
-        address = service_info.address.lower()
-        _LOGGER.debug(f"Received BLE update for {service_info.name} ({address})")
-
-        if change != bluetooth.BluetoothChange.ADVERTISEMENT:
-            _LOGGER.debug(f"Ignoring non-advertisement change for {service_info.address}")
-            return
-
-        parser_cls = get_parser(service_info)
-        if not parser_cls:
-            _LOGGER.debug(f"No parser found for device {address}, skipping.")
-            return
-
-        parser: BaseParser = parser_cls()
-        try:
-            parsed_data = parser.parse(service_info)
-            if parsed_data is None:
-                _LOGGER.debug(f"Parser for {address} returned None, skipping update.")
-                return
-
-            # Add metadata
-            parsed_data[ATTR_LAST_UPDATED] = datetime.now().isoformat()
-            parsed_data[ATTR_RSSI] = service_info.rssi
-
-            _LOGGER.debug(f"Parsed data for {address}: {parsed_data}")
-
-            # Update coordinator data
-            # Ensure data dict exists
-            if self.data is None:
-                self.data = {}
-            self.data[address] = parsed_data
-            self._last_seen[address] = datetime.now() # Update last seen time
-
-            # Notify listeners
-            self.async_set_updated_data(self.data)
-
-        except ParsingError as e:
-            _LOGGER.error(f"Error parsing data for {address}: {e}")
-        except Exception as e:
-            _LOGGER.exception(f"Unexpected error processing BLE data for {address}: {e}")
-
-
-    async def async_start(self) -> None:
-        """Start the passive scanner."""
-        _LOGGER.info("Starting BLE passive scanner")
-        # Ensure data is initialized
-        if self.data is None:
-            self.data = {}
-
-        # Register the scanner callback using async_register_callback
-        self._scanner_unregister_callback = bluetooth.async_register_callback(
-            self.hass,
-            self._async_handle_bluetooth_event,
-            {"connectable": False},  # Filter for non-connectable devices
-            bluetooth.BluetoothScanningMode.ACTIVE
+        _LOGGER.info(
+            f"Initialized BLE Coordinator for {self.name} with update interval {update_interval}"
         )
-        _LOGGER.info("BLE passive scanner started and callback registered.")
+        # Add listener for config entry option changes (e.g., polling interval)
+        entry.add_update_listener(self._async_options_updated)
 
-        # Trigger an initial update (optional, might be useful for cleanup)
-        await self.async_refresh()
 
-    async def async_stop(self) -> None:
-        """Stop the passive scanner."""
-        _LOGGER.info("Stopping BLE passive scanner")
-        if self._scanner_unregister_callback:
-            self._scanner_unregister_callback()  # Correctly call the stored unregister callback
-            self._scanner_unregister_callback = None
-            _LOGGER.info("BLE scanner callback unregistered.")
-        # Perform any other cleanup if needed
+    @staticmethod
+    async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Handle options update."""
+        # This is called by HA when options are saved.
+        # We need to find the coordinator instance and update its interval.
+        # This assumes the coordinator is stored in hass.data
+        coordinator_key = f"{DOMAIN}_{entry.entry_id}"
+        if coordinator_key in hass.data:
+            coordinator: BleScannerCoordinator = hass.data[coordinator_key]
+            _LOGGER.debug(f"[{coordinator.name}] Options updated, reconfiguring interval.")
+            new_polling_interval = entry.options.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
+            new_update_interval = timedelta(seconds=max(15, new_polling_interval))
+            coordinator.update_interval = new_update_interval
+            _LOGGER.info(f"[{coordinator.name}] Update interval changed to {new_update_interval}")
+            # Optionally trigger a refresh immediately
+            # await coordinator.async_request_refresh()
+        else:
+             _LOGGER.warning(f"Coordinator for entry {entry.entry_id} not found during options update.")
+
 
     async def _async_update_data(self) -> CoordinatorData:
-        """Periodically check for and remove stale devices."""
-        _LOGGER.debug("Running periodic check for stale BLE devices.")
-        now = datetime.now()
-        stale_devices = [
-            address
-            for address, last_seen_time in self._last_seen.items()
-            if (now - last_seen_time).total_seconds() > DEVICE_UNAVAILABLE_TIMEOUT
-        ]
+        """Fetch data from the BLE device."""
+        if not self._device_handler:
+            _LOGGER.error(f"[{self.name}] Device handler not available, cannot update.")
+            raise UpdateFailed("Device handler not initialized.")
 
-        updated = False
-        if stale_devices:
-            _LOGGER.info(f"Removing stale devices: {stale_devices}")
-            current_data = self.data or {}
-            for address in stale_devices:
-                if address in current_data:
-                    del current_data[address]
-                    updated = True
-                if address in self._last_seen:
-                    del self._last_seen[address]
-            self.data = current_data # Update self.data reference
+        _LOGGER.debug(f"[{self.name}] Attempting to fetch data")
 
-        # Return the current data (potentially cleaned)
-        # If data was changed, listeners will be notified by the coordinator base class
-        # if the data object reference itself changed, or if we call async_set_updated_data.
-        # Since we modify in place or reassign self.data, returning it should be sufficient.
-        _LOGGER.debug(f"Stale device check complete. Current devices: {list(self.data.keys() if self.data else [])}")
-        return self.data or {}
+        # 1. Get BLEDevice
+        ble_device: BLEDevice | None = bluetooth.async_ble_device_from_address(
+            self.hass, self._device_address, connectable=True
+        )
+        if not ble_device:
+            _LOGGER.warning(f"[{self.name}] Device not found or not connectable.")
+            # Do not raise UpdateFailed immediately, device might become available later
+            # Return current data (or empty dict if first run) to keep sensors available but stale
+            # The coordinator base class handles availability based on success/failure
+            # Let's raise UpdateFailed to signal the issue clearly for this poll cycle
+            raise UpdateFailed(f"Device {self._device_address} not found")
 
+        # 2. Connect and Fetch Data
+        client = BleakClient(ble_device)
+        try:
+            # Set a reasonable timeout for the connection attempt
+            async with client: # Default connect timeout is often long, manage explicitly if needed
+                if not client.is_connected:
+                    _LOGGER.warning(f"[{self.name}] Failed to connect.")
+                    raise UpdateFailed(f"Failed to connect to {self._device_address}")
 
-    # Keep get_last_seen if sensors need it, data comes from internal tracking now
-    def get_last_seen(self, device_address: str) -> Optional[datetime]:
-        """Get the last successful update timestamp for a device."""
-        return self._last_seen.get(device_address.lower())
+                _LOGGER.debug(f"[{self.name}] Connected. Fetching data...")
+                # Call the device-specific fetch logic
+                fetched_data = await self._device_handler.async_fetch_data(client)
 
-    # --- Methods below are removed as they relate to active connections ---
-    # _get_device_identifier
-    # _find_device
-    # _update_single_device
-    # _disconnect_device
-    # _handle_refresh_interval (base class handles interval now for cleanup)
+                # Add metadata
+                fetched_data[ATTR_LAST_UPDATED] = datetime.now().isoformat()
+                # Get RSSI from the discovered device object
+                if hasattr(ble_device, "rssi") and ble_device.rssi is not None:
+                     fetched_data[ATTR_RSSI] = ble_device.rssi
+                # Don't try to get RSSI from active connection, rely on discovery
+
+                _LOGGER.debug(f"[{self.name}] Data fetched successfully: {fetched_data}")
+                return fetched_data
+
+        except BleakError as err:
+            _LOGGER.warning(f"[{self.name}] Bluetooth error: {err}", exc_info=False) # Log BleakError as warning
+            raise UpdateFailed(f"Bluetooth error: {err}") from err
+        except TimeoutError as err:
+             _LOGGER.warning(f"[{self.name}] Timeout connecting or fetching data: {err}")
+             raise UpdateFailed(f"Timeout: {err}") from err
+        except Exception as err:
+            _LOGGER.exception(f"[{self.name}] Unexpected error during update: {err}")
+            raise UpdateFailed(f"Unexpected error: {err}") from err
+        # No finally block needed here, 'async with client' handles disconnection
+
+    # No other methods needed (async_start, async_stop, _async_handle_bluetooth_event, get_last_seen are removed)

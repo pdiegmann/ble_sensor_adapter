@@ -2,28 +2,13 @@
 # Removed asyncio as active connections are removed
 import logging
 from datetime import timedelta, datetime # Keep datetime for potential timestamping
-from typing import Any, Dict, Optional, Callable, Set, Tuple # Added Tuple
+from typing import Any, Dict, Optional, Callable
 
 # Removed async_timeout, bleak imports (BleakClient, BLEDevice, AdvertisementData, BleakError)
 
-import async_timeout
-import bleak
-from bleak import BleakClient
-from bleak.backends.device import BLEDevice
-from bleak.backends.scanner import AdvertisementData
-from bleak.exc import BleakError
-
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-# Removed Debouncer as updates are event-driven
-from homeassistant.const import CONF_ADDRESS # Keep address constant
-# Import Bluetooth components
-from homeassistant.components.bluetooth import (
-    BluetoothChange,
-    BluetoothServiceInfoBleak,
-    async_register_callback,
-    async_unregister_callback,  # Added for proper cleanup
-)
+from homeassistant.components import bluetooth
 
 from custom_components.ble_scanner.const import (
     DOMAIN,
@@ -78,14 +63,14 @@ class BLEScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
     @callback
     def _async_handle_bluetooth_event(
         self,
-        service_info: BluetoothServiceInfoBleak,
-        change: BluetoothChange,
+        service_info: bluetooth.BluetoothServiceInfoBleak,
+        change: bluetooth.BluetoothChange,
     ) -> None:
         """Handle discovery updates from Bluetooth integration."""
         address = service_info.address.lower()
         _LOGGER.debug(f"Received BLE update for {service_info.name} ({address})")
 
-        if change != BluetoothChange.ADVERTISEMENT:
+        if change != bluetooth.BluetoothChange.ADVERTISEMENT:
             _LOGGER.debug(f"Ignoring non-advertisement change for {service_info.address}")
             return
 
@@ -131,7 +116,7 @@ class BLEScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
             self.data = {}
 
         # Register the scanner callback using async_register_callback
-        self._scanner_unregister_callback = async_register_callback(
+        self._scanner_unregister_callback = bluetooth.async_register_callback(
             self.hass,
             self._async_handle_bluetooth_event,
             {"connectable": False},  # Filter for non-connectable devices
@@ -145,7 +130,7 @@ class BLEScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
         """Stop the passive scanner."""
         _LOGGER.info("Stopping BLE passive scanner")
         if self._scanner_unregister_callback:
-            async_unregister_callback(self._scanner_unregister_callback)  # Use async_unregister_callback
+            bluetooth.async_unregister_callback(self._scanner_unregister_callback)  # Use async_unregister_callback
             self._scanner_unregister_callback = None
             _LOGGER.info("BLE scanner callback unregistered.")
         # Perform any other cleanup if needed

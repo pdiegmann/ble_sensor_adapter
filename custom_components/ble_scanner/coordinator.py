@@ -21,8 +21,8 @@ from homeassistant.const import CONF_ADDRESS # Keep address constant
 from homeassistant.components.bluetooth import (
     BluetoothChange,
     BluetoothServiceInfoBleak,
-    async_register_scanner,
-    async_get_advertisement_callback,
+    async_register_callback,
+    async_unregister_callback,  # Added for proper cleanup
 )
 
 from custom_components.ble_scanner.const import (
@@ -85,6 +85,10 @@ class BLEScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
         address = service_info.address.lower()
         _LOGGER.debug(f"Received BLE update for {service_info.name} ({address})")
 
+        if change != BluetoothChange.ADVERTISEMENT:
+            _LOGGER.debug(f"Ignoring non-advertisement change for {service_info.address}")
+            return
+
         parser_cls = get_parser(service_info)
         if not parser_cls:
             _LOGGER.debug(f"No parser found for device {address}, skipping.")
@@ -125,20 +129,23 @@ class BLEScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
         # Ensure data is initialized
         if self.data is None:
             self.data = {}
-        # Register the scanner callback
-        # Use async_get_advertisement_callback to wrap our handler
-        wrapped_callback = async_get_advertisement_callback(self.hass, self._async_handle_bluetooth_event)
-        self._scanner_unregister_callback = async_register_scanner(self.hass, wrapped_callback, connectable=False)
+
+        # Register the scanner callback using async_register_callback
+        self._scanner_unregister_callback = async_register_callback(
+            self.hass,
+            self._async_handle_bluetooth_event,
+            {"connectable": False},  # Filter for non-connectable devices
+        )
         _LOGGER.info("BLE passive scanner started and callback registered.")
+
         # Trigger an initial update (optional, might be useful for cleanup)
         await self.async_refresh()
-
 
     async def async_stop(self) -> None:
         """Stop the passive scanner."""
         _LOGGER.info("Stopping BLE passive scanner")
         if self._scanner_unregister_callback:
-            self._scanner_unregister_callback()
+            async_unregister_callback(self._scanner_unregister_callback)  # Use async_unregister_callback
             self._scanner_unregister_callback = None
             _LOGGER.info("BLE scanner callback unregistered.")
         # Perform any other cleanup if needed

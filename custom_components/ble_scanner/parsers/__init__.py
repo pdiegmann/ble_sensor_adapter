@@ -45,11 +45,11 @@ def get_parser(service_info: BluetoothServiceInfoBleak) -> Optional[type[BasePar
             _LOGGER.debug(f"Found matching manufacturer ID {mfr_id} for {service_info.address}, using parser: {parser_cls.__name__}")
             return parser_cls
 
-    # Check service UUIDs next (if parsers are identified by UUID)
-    # for service_uuid, parser_cls in PARSERS.items():
-    #    if isinstance(service_uuid, str) and service_uuid in service_info.service_uuids:
-    #        _LOGGER.debug(f"Found matching service UUID {service_uuid} for {service_info.address}, using parser: {parser_cls.__name__}")
-    #        return parser_cls
+    # Check service UUIDs next
+    for service_uuid, parser_cls in PARSERS.items():
+        if isinstance(service_uuid, str) and service_uuid in service_info.service_uuids:
+            _LOGGER.debug(f"Found matching service UUID {service_uuid} for {service_info.address}, using parser: {parser_cls.__name__}")
+            return parser_cls
 
     _LOGGER.debug(f"No suitable parser class found for device {service_info.address}")
     return None

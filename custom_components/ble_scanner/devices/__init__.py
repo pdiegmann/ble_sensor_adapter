@@ -27,6 +27,6 @@ def get_device_handler(device_type: str) -> Optional[Type[BaseDeviceHandler]]:
     """Get the appropriate handler class for a given device type."""
     handler = HANDLER_MAP.get(device_type)
     if not handler:
-        _LOGGER.warning(f"No active connection handler registered for device type: {device_type}")
+        _LOGGER.warning(f"No handler registered for device type: {device_type}")
     return handler
 

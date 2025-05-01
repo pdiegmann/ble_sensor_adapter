@@ -83,19 +83,13 @@ class BaseDeviceHandler:
             self.logger.info(f"Attempting to connect to {self.device_id} ({ble_device.address})")
             try:
                 self._client = BleakClient(ble_device)
-                connected = await self._client.connect()
-                if connected:
-                    self.logger.info(f"Successfully connected to {self.device_id}")
-                    self._is_available = True
-                    # Store RSSI if available from the BLEDevice object
-                    if hasattr(ble_device, "rssi") and ble_device.rssi is not None:
-                        self._rssi = ble_device.rssi
-                    return True
-                else:
-                    self.logger.error(f"Failed to connect to {self.device_id}")
-                    self._client = None
-                    self._is_available = False
-                    return False
+                await self._client.connect()
+                self.logger.info(f"Successfully connected to {self.device_id}")
+                self._is_available = True
+                # Store RSSI if available from the BLEDevice object
+                if hasattr(ble_device, "rssi") and ble_device.rssi is not None:
+                    self._rssi = ble_device.rssi
+                return True
             except BleakError as e:
                 self.logger.error(f"BleakError during connection to {self.device_id}: {e}")
                 self._client = None

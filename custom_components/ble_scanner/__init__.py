@@ -1,3 +1,4 @@
+from typing import Any
 from homeassistant import config_entries
 # custom_components/ble_scanner/__init__.py
 """The BLE Scanner integration."""

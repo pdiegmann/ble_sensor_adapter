@@ -15,7 +15,7 @@ from custom_components.ble_scanner.const import (
     KEY_PF_POWER_STATUS, KEY_PF_MODE, KEY_PF_DND_STATE, KEY_PF_WARN_BREAKDOWN,
     KEY_PF_WARN_WATER, KEY_PF_WARN_FILTER, KEY_PF_PUMP_RUNTIME,
     KEY_PF_FILTER_PERCENT, KEY_PF_RUNNING_STATUS,
-    DOMAINR
+    DOMAIN
 )
 from ..errors import ParsingError  # Use relative import
 from .base import BaseParser  # Use relative import

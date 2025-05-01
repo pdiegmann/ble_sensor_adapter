@@ -19,7 +19,7 @@ from homeassistant.helpers.update_coordinator import UpdateFailed # Removed Data
 
 from custom_components.ble_scanner.const import DOMAIN, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL, LOGGER_NAME # Removed CONF_DEVICE_ADDRESS
 # Removed coordinator import from top level
-# from custom_components.ble_scanner.coordinator import BLEScannerCoordinator
+# from custom_components.ble_scanner.coordinator import BleScannerCoordinator
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
@@ -38,7 +38,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug(f"Config Entry Options: {entry.options}")
 
     # Create the coordinator instance for this specific entry
-    coordinator = BLEScannerCoordinator(hass, entry)
+    coordinator = BleScannerCoordinator(hass, entry)
 
     # Perform the first refresh to fetch initial data and check device availability
     try:

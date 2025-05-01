@@ -52,7 +52,7 @@ from custom_components.ble_scanner.const import (
     KEY_S06_PRESSURE,
     KEY_S06_BATTERY,
 )
-from custom_components.ble_scanner.coordinator import BLEScannerCoordinator # Removed CoordinatorData
+from custom_components.ble_scanner.coordinator import BleScannerCoordinator # Removed CoordinatorData
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
@@ -180,7 +180,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up BLE Scanner sensor entities based on config entry."""
-    coordinator: BLEScannerCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: BleScannerCoordinator = hass.data[DOMAIN][entry.entry_id]
     device_type = entry.data.get(CONF_DEVICE_TYPE)
 
     if not device_type:
@@ -208,14 +208,14 @@ async def async_setup_entry(
 # Removed the dynamic update logic (_async_update_sensors and listener)
 
 
-class BleSensor(CoordinatorEntity[BLEScannerCoordinator], SensorEntity):
+class BleSensor(CoordinatorEntity[BleScannerCoordinator], SensorEntity):
     """Representation of a Sensor for a BLE device attribute, linked to a coordinator."""
 
     _attr_has_entity_name = True # Sensor name will be based on entity_description
 
     def __init__(
         self,
-        coordinator: BLEScannerCoordinator,
+        coordinator: BleScannerCoordinator,
         sensor_key: str,
     ) -> None:
         """Initialize the sensor."""

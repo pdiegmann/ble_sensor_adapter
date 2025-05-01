@@ -76,6 +76,7 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         # Discover available devices not already configured
+        _LOGGER.warning(f"bluetooth module attributes: {dir(bluetooth)}")
         discovered_devices = bluetooth.async_scanner_devices(self.hass, connectable=True)
         configured_addresses = {
             entry.unique_id for entry in self._async_current_entries()

@@ -1,20 +1,20 @@
+from homeassistant import config_entries
 # custom_components/ble_scanner/__init__.py
 """The BLE Scanner integration."""
-import asyncio
 import logging
 
 import voluptuous as vol # Import voluptuous for options schema
-from homeassistant.config_entries import ConfigEntry, ConfigEntryState
-from homeassistant.const import CONF_ADDRESS, Platform
+from homeassistant.config_entries import ConfigEntry # Removed ConfigEntryState
+from homeassistant.const import Platform # Removed CONF_ADDRESS
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers.device_registry import DeviceInfo
+# Removed DeviceInfo import
 from homeassistant.helpers.selector import ( # Import selectors for options flow
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
 )
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import UpdateFailed # Removed DataUpdateCoordinator
 
 from .const import DOMAIN, CONF_DEVICE_ADDRESS, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL, LOGGER_NAME # Adjusted imports
 from .coordinator import BLEScannerCoordinator

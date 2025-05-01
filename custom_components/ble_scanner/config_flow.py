@@ -60,7 +60,7 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             title = address
             try:
                 # Use async_scanner_devices which returns BLEDevice objects
-                scanner_devices = bluetooth.async_scanner_devices(self.hass, True)
+                scanner_devices = bluetooth.async_get_scanner(self.hass).discovered_devices
                 for device in scanner_devices:
                     if device.address == address:
                         title = device.name or address # Use name if available
@@ -76,8 +76,7 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         # Discover available devices not already configured
-        _LOGGER.warning(f"bluetooth module attributes: {dir(bluetooth)}")
-        discovered_devices = bluetooth.async_scanner_devices(self.hass, connectable=True)
+        discovered_devices = bluetooth.async_get_scanner(self.hass).discovered_devices
         configured_addresses = {
             entry.unique_id for entry in self._async_current_entries()
         }

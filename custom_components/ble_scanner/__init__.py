@@ -29,7 +29,7 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up BLE Scanner from a config entry."""
     # Import coordinator here, just before it's needed
-    from custom_components.ble_scanner.coordinator import BLEScannerCoordinator # MOVED HERE
+    from custom_components.ble_scanner.coordinator import BleScannerCoordinator # MOVED HERE
 
     # Ensure DOMAIN key exists in hass.data
     hass.data.setdefault(DOMAIN, {})

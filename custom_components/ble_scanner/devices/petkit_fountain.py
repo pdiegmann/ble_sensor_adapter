@@ -63,7 +63,7 @@ class PetkitFountainHandler(BaseDeviceHandler):
     """Handles connection and data parsing for Petkit Fountains."""
 
     def __init__(self, hass, config, logger):
-        super().__init__(hass, config, logger)
+        super().__init__(config) # Pass only config to base class
         self._sequence = 0
         self._device_id_bytes: Optional[bytes] = None
         self._secret: Optional[bytes] = None

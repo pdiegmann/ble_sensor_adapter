@@ -117,7 +117,8 @@ class BLEScannerOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             # Validate interval (optional, selector usually handles it)
             interval = user_input.get(CONF_POLLING_INTERVAL)
-            if not (30 <= interval <= 3600):
+            # Check if interval is None before comparison
+            if interval is None or not (30 <= interval <= 3600):
                  errors["base"] = "invalid_interval" # Use base error key defined in strings.json
             else:
                 # Update the options for the config entry

@@ -59,6 +59,8 @@ class BleScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
             # Pass the specific device config part of the entry data if needed
             # Assuming entry.data contains necessary info like type, name, address
             device_config = entry.data
+            _LOGGER.debug(f"HANDLER_MAP keys: {list(HANDLER_MAP.keys())}")
+            _LOGGER.debug(f"self._device_type value: {self._device_type!r}")
             _LOGGER.debug(f"device_config type: {type(device_config)}, value: {device_config}")
             _LOGGER.debug(f"self._device_type type: {type(self._device_type)}, value: {self._device_type}")
             self._device_handler: BaseDeviceHandler = get_device_handler(self._device_type)

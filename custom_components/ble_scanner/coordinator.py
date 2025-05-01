@@ -120,6 +120,7 @@ class BLEScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
             self.hass,
             self._async_handle_bluetooth_event,
             {"connectable": False},  # Filter for non-connectable devices
+            bluetooth.BluetoothScanningMode.ACTIVE
         )
         _LOGGER.info("BLE passive scanner started and callback registered.")
 

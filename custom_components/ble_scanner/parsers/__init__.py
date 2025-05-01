@@ -1,35 +1,56 @@
-"""Parser registry for BLE device data."""
+# custom_components/ble_scanner/parsers/__init__.py
+"""Parsers for BLE advertisement data."""
 import logging
-from typing import Callable, Optional, Dict, Any
+from typing import Optional, Dict, Any
 
-from bleak.backends.device import BLEDevice
-from bleak.backends.scanner import AdvertisementData
+from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 
-from custom_components.ble_scanner.const import (
+# Need to import const from the parent directory
+from ..const import (
+    LOGGER_NAME,
+    CONF_DEVICE_TYPE,
     DEVICE_TYPE_PETKIT_FOUNTAIN,
+    KEY_PF_MODEL_CODE, KEY_PF_MODEL_NAME, KEY_PF_ALIAS, KEY_PF_BATTERY,
+    KEY_PF_POWER_STATUS, KEY_PF_MODE, KEY_PF_DND_STATE, KEY_PF_WARN_BREAKDOWN,
+    KEY_PF_WARN_WATER, KEY_PF_WARN_FILTER, KEY_PF_PUMP_RUNTIME,
+    KEY_PF_FILTER_PERCENT, KEY_PF_RUNNING_STATUS,
     DEVICE_TYPE_S06_SOIL_TESTER,
-    LOGGER_NAME
+    KEY_S06_TEMP, KEY_S06_RH, KEY_S06_PRESSURE, KEY_S06_BATTERY,
 )
-from custom_components.ble_scanner.parsers.petkit_fountain import parse_petkit_fountain
-from custom_components.ble_scanner.parsers.s_06_soil_tester import parse_s06_soil_tester
+# Import ParsingError if defined
+from ..errors import ParsingError
+
+from base import BaseParser
+from petkit_fountain import PETKIT_MANUFACTURER_ID, PetkitFountainParser
+from s_06_soil_tester import S06SoilTesterParser
+from custom_components.ble_scanner.devices.s_06_soil_tester import S06_SERVICE_UUID
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
-# Type alias for parser functions
-ParserFunc = Callable[[BLEDevice, AdvertisementData], Optional[Dict[str, Any]]]
+# --- Main Parser Dispatch ---
+# Maps identifiers (like manufacturer IDs or service UUIDs) to parser *classes*
 
-# Map device types to their parser functions
-PARSER_MAP: Dict[str, ParserFunc] = {
-    DEVICE_TYPE_PETKIT_FOUNTAIN: parse_petkit_fountain,
-    DEVICE_TYPE_S06_SOIL_TESTER: parse_s06_soil_tester,
+# Using manufacturer ID for Petkit, adjust if needed
+PARSERS = {
+    PETKIT_MANUFACTURER_ID: PetkitFountainParser,
+    # Add S06 identifier and parser class when implemented
+    S06_SERVICE_UUID: S06SoilTesterParser,
 }
 
-def get_parser(device_type: str) -> Optional[ParserFunc]:
-    """Return the parser function for the given device type."""
-    parser = PARSER_MAP.get(device_type)
-    if parser:
-        _LOGGER.debug(f"Using parser {parser.__name__} for device type {device_type}")
-    else:
-        _LOGGER.warning(f"No parser found for device type: {device_type}")
-    return parser
+def get_parser(service_info: BluetoothServiceInfoBleak) -> Optional[type[BaseParser]]:
+    """Check advertisement data and return the appropriate parser class."""
+    # Check manufacturer data first
+    for mfr_id, parser_cls in PARSERS.items():
+        if isinstance(mfr_id, int) and mfr_id in service_info.manufacturer_data:
+            _LOGGER.debug(f"Found matching manufacturer ID {mfr_id} for {service_info.address}, using parser: {parser_cls.__name__}")
+            return parser_cls
+
+    # Check service UUIDs next (if parsers are identified by UUID)
+    # for service_uuid, parser_cls in PARSERS.items():
+    #    if isinstance(service_uuid, str) and service_uuid in service_info.service_uuids:
+    #        _LOGGER.debug(f"Found matching service UUID {service_uuid} for {service_info.address}, using parser: {parser_cls.__name__}")
+    #        return parser_cls
+
+    _LOGGER.debug(f"No suitable parser class found for device {service_info.address}")
+    return None
 

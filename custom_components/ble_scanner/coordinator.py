@@ -1,8 +1,10 @@
-"""DataUpdateCoordinator for the BLE Scanner integration using active connections."""
-import asyncio
+"""DataUpdateCoordinator for the BLE Scanner integration using passive scanning."""
+# Removed asyncio as active connections are removed
 import logging
-from datetime import timedelta, datetime
-from typing import Any, Dict, Optional, Callable, Set
+from datetime import timedelta, datetime # Keep datetime for potential timestamping
+from typing import Any, Dict, Optional, Callable, Set, Tuple # Added Tuple
+
+# Removed async_timeout, bleak imports (BleakClient, BLEDevice, AdvertisementData, BleakError)
 
 import async_timeout
 import bleak
@@ -13,264 +15,172 @@ from bleak.exc import BleakError
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.helpers.debounce import Debouncer
-from homeassistant.const import CONF_ADDRESS, CONF_NAME
+# Removed Debouncer as updates are event-driven
+from homeassistant.const import CONF_ADDRESS # Keep address constant
+# Import Bluetooth components
+from homeassistant.components.bluetooth import (
+    BluetoothChange,
+    BluetoothServiceInfoBleak,
+    async_register_scanner,
+    async_get_advertisement_callback,
+)
 
 from custom_components.ble_scanner.const import (
     DOMAIN,
-    CONF_DEVICES,
-    CONF_DEVICE_NAME,
-    CONF_DEVICE_ADDRESS,
-    CONF_DEVICE_TYPE,
-    CONF_POLLING_INTERVAL,
+    # Removed CONF_DEVICES, CONF_DEVICE_NAME, CONF_DEVICE_TYPE
+    CONF_POLLING_INTERVAL, # Keep for potential future use or cleanup interval
     DEFAULT_POLLING_INTERVAL,
     ATTR_LAST_UPDATED,
-    ATTR_RSSI, # Keep RSSI from discovery if possible
+    ATTR_RSSI,
     LOGGER_NAME,
 )
-from custom_components.ble_scanner.errors import DeviceNotFoundError, ParsingError, UnsupportedDeviceTypeError
-# Import device-specific active connection handlers (to be created)
-from custom_components.ble_scanner.devices import get_device_handler, BaseDeviceHandler
+# Removed DeviceNotFoundError, UnsupportedDeviceTypeError (handled differently)
+from custom_components.ble_scanner.errors import ParsingError
+# Import parsers instead of active handlers
+from custom_components.ble_scanner.parsers import get_parser, BaseParser
 
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
-# How long to scan for devices if address is unknown (seconds)
-DISCOVERY_SCAN_TIMEOUT = 5
-# How long to attempt connection (seconds)
-CONNECTION_TIMEOUT = 20
-# Minimum time between updates enforced by coordinator
-MIN_UPDATE_INTERVAL_SECONDS = 30 # Increased minimum due to connection overhead
+# Data structure for coordinator.data: Dict[str, Dict[str, Any]]
+# Maps device address (lowercase) to a dictionary of its parsed sensor values
+CoordinatorData = Dict[str, Dict[str, Any]]
 
-class BLEScannerCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
-    """Class to manage fetching BLE data via active connections."""
+# How long to wait before considering a device unavailable (seconds)
+DEVICE_UNAVAILABLE_TIMEOUT = 1800 # 30 minutes
+
+
+class BLEScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
+    """Class to manage BLE data via passive scanning."""
 
     def __init__(self, hass: HomeAssistant, entry) -> None:
         """Initialize."""
         self.hass = hass
         self.entry = entry
-        self.config = entry.options
-        self._devices_config = self.config.get(CONF_DEVICES, [])
-        # Store discovered devices temporarily if needed for address lookup
-        self._discovered_devices_cache: Dict[str, BLEDevice] = {}
-        self._device_handlers: Dict[str, BaseDeviceHandler] = {}
-        self._connection_locks: Dict[str, asyncio.Lock] = {}
-        self._device_tasks: Dict[str, asyncio.Task] = {}
-        self._stopping = False
+        # Use polling interval from data (set during config flow)
+        # Might be used for cleanup tasks later, not for scanning interval
+        self.polling_interval = entry.data.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
+        self._scanner_unregister_callback: Optional[Callable] = None
+        self._last_seen: Dict[str, datetime] = {} # Track last seen time for devices
 
-        # Determine the shortest polling interval, minimum MIN_UPDATE_INTERVAL_SECONDS
-        min_interval = DEFAULT_POLLING_INTERVAL
-        if self._devices_config:
-            min_interval = min(
-                dev.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
-                for dev in self._devices_config
-            )
-        update_interval_seconds = max(MIN_UPDATE_INTERVAL_SECONDS, min_interval)
-        _LOGGER.info(f"Coordinator update interval set to {update_interval_seconds} seconds")
-
+        # Initialize with empty data
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(seconds=update_interval_seconds),
-            request_refresh_debouncer=Debouncer(
-                hass, _LOGGER, cooldown=5.0, immediate=False
-            ),
+            # Update interval is not strictly needed for scanning,
+            # but can be used for periodic cleanup of old devices.
+            # Set it based on config, minimum 60s.
+            update_interval=timedelta(seconds=max(60, self.polling_interval)),
+            # No debouncer needed for event-driven updates
         )
 
-        # Initialize handlers and locks for each configured device
-        for device_conf in self._devices_config:
-            device_id = self._get_device_identifier(device_conf)
-            device_type = device_conf.get(CONF_DEVICE_TYPE)
-            handler_cls = get_device_handler(device_type)
-            if handler_cls:
-                self._device_handlers[device_id] = handler_cls(hass, device_conf, self.logger)
-                self._connection_locks[device_id] = asyncio.Lock()
-            else:
-                _LOGGER.error(f"No active connection handler found for device type: {device_type} ({device_id})")
+    @callback
+    def _async_handle_bluetooth_event(
+        self,
+        service_info: BluetoothServiceInfoBleak,
+        change: BluetoothChange,
+    ) -> None:
+        """Handle discovery updates from Bluetooth integration."""
+        address = service_info.address.lower()
+        _LOGGER.debug(f"Received BLE update for {service_info.name} ({address})")
 
-    def _get_device_identifier(self, device_conf: Dict[str, Any]) -> str:
-        """Get a unique identifier for the device config (address preferred)."""
-        # Use address if available, otherwise name. Ensure lowercase.
-        addr = device_conf.get(CONF_DEVICE_ADDRESS)
-        name = device_conf.get(CONF_DEVICE_NAME)
-        if addr:
-            return addr.lower()
-        elif name:
-            return name.lower() # Less ideal, names can clash
-        else:
-            # Should not happen with config flow, but handle defensively
-            return f"unknown_device_{hash(tuple(sorted(device_conf.items())))}"
-
-    async def _find_device(self, address: Optional[str], name: Optional[str]) -> Optional[BLEDevice]:
-        """Find a device by address or name using BleakScanner."""
-        if address:
-            try:
-                # Try direct connection first if address is known
-                # This might fail if device is not advertising, but worth a try
-                # However, BleakClient often needs a BLEDevice object first.
-                # So, let's scan briefly.
-                _LOGGER.debug(f"Scanning for device with address: {address}")
-                device = await bleak.BleakScanner.find_device_by_address(address, timeout=DISCOVERY_SCAN_TIMEOUT)
-                if device:
-                    _LOGGER.debug(f"Found device by address: {device}")
-                    self._discovered_devices_cache[address.lower()] = device # Cache it
-                    return device
-                else:
-                    _LOGGER.debug(f"Device not found by address {address} in scan.")
-                    # Check cache from previous scans
-                    return self._discovered_devices_cache.get(address.lower())
-            except BleakError as e:
-                _LOGGER.warning(f"BleakError while scanning for {address}: {e}")
-                return None
-        elif name:
-            _LOGGER.debug(f"Scanning for device with name: {name}")
-            try:
-                # Scan for devices matching the name
-                discovered = await bleak.BleakScanner.discover(timeout=DISCOVERY_SCAN_TIMEOUT)
-                for device in discovered:
-                    if device.name and device.name.lower() == name.lower():
-                        _LOGGER.debug(f"Found device by name: {device}")
-                        if device.address:
-                             self._discovered_devices_cache[device.address.lower()] = device # Cache it
-                        return device
-                _LOGGER.debug(f"Device not found by name {name} in scan.")
-                return None
-            except BleakError as e:
-                _LOGGER.warning(f"BleakError while scanning for {name}: {e}")
-                return None
-        else:
-            _LOGGER.error("Cannot find device without address or name.")
-            return None
-
-    async def _update_single_device(self, device_id: str, handler: BaseDeviceHandler) -> Optional[Dict[str, Any]]:
-        """Connect to and update data for a single device."""
-        lock = self._connection_locks.get(device_id)
-        if not lock:
-            _LOGGER.error(f"No connection lock found for device {device_id}")
-            return None
-
-        if lock.locked():
-            _LOGGER.debug(f"Update already in progress for {device_id}, skipping.")
-            return handler.get_latest_data() # Return last known data
-
-        async with lock:
-            _LOGGER.debug(f"Attempting update for device: {device_id}")
-            address = handler.config.get(CONF_DEVICE_ADDRESS)
-            name = handler.config.get(CONF_DEVICE_NAME)
-            ble_device = None
-
-            # 1. Find the BLEDevice object
-            # Check cache first
-            if address and address.lower() in self._discovered_devices_cache:
-                ble_device = self._discovered_devices_cache[address.lower()]
-                _LOGGER.debug(f"Using cached BLEDevice for {address}")
-            else:
-                # If not cached or address unknown, perform discovery
-                ble_device = await self._find_device(address, name)
-
-            if not ble_device:
-                _LOGGER.warning(f"Could not find device {device_id} (Address: {address}, Name: {name}). Marking unavailable.")
-                handler.mark_unavailable()
-                return handler.get_latest_data() # Return data (likely marked unavailable)
-
-            # Update address in handler if found by name and address wasn't known
-            if not address and ble_device.address:
-                 handler.update_address(ble_device.address)
-                 # Update main config? No, keep original config, handler knows address now.
-
-            # 2. Connect and Fetch Data using the handler
-            try:
-                async with async_timeout.timeout(CONNECTION_TIMEOUT):
-                    await handler.update(ble_device)
-                _LOGGER.debug(f"Successfully updated data for {device_id}")
-                return handler.get_latest_data()
-            except asyncio.TimeoutError:
-                _LOGGER.error(f"Timeout connecting to or fetching data from {device_id} ({ble_device.address})")
-                handler.mark_unavailable()
-            except BleakError as e:
-                _LOGGER.error(f"BleakError for device {device_id} ({ble_device.address}): {e}")
-                handler.mark_unavailable()
-            except Exception as e:
-                _LOGGER.error(f"Unexpected error updating device {device_id} ({ble_device.address}): {e}", exc_info=True)
-                handler.mark_unavailable()
-
-            return handler.get_latest_data() # Return data even if update failed (will be marked unavailable)
-
-    async def _async_update_data(self) -> Dict[str, Any]:
-        """Fetch data from BLE devices by connecting to them."""
-        _LOGGER.debug("Starting active connection update cycle")
-        start_time = datetime.now()
-        all_data = {}
-
-        # Create tasks for each device update
-        tasks = []
-        for device_id, handler in self._device_handlers.items():
-            tasks.append(self._update_single_device(device_id, handler))
-
-        # Run updates concurrently
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Collect results
-        for i, device_id in enumerate(self._device_handlers.keys()):
-            result = results[i]
-            if isinstance(result, Exception):
-                _LOGGER.error(f"Update task for {device_id} failed with exception: {result}")
-                # Keep previous data if available
-                if handler := self._device_handlers.get(device_id):
-                    all_data[device_id] = handler.get_latest_data()
-            elif result is not None:
-                all_data[device_id] = result
-            else:
-                 # Keep previous data if update returned None unexpectedly
-                 if handler := self._device_handlers.get(device_id):
-                    all_data[device_id] = handler.get_latest_data()
-
-        end_time = datetime.now()
-        _LOGGER.debug(f"Active connection update cycle finished in {(end_time - start_time).total_seconds():.2f} seconds. Results: {all_data}")
-        return all_data
-
-    async def async_stop(self, *args) -> None:
-        """Stop the coordinator and disconnect devices."""
-        _LOGGER.info("Stopping BLE Scanner coordinator and disconnecting devices.")
-        self._stopping = True
-        # Cancel any pending refresh tasks
-        self._unschedule_refresh() # Cancel the timer for the next scheduled update
-
-        # Disconnect all handlers
-        disconnect_tasks = []
-        for device_id, handler in self._device_handlers.items():
-            lock = self._connection_locks.get(device_id)
-            if lock:
-                 disconnect_tasks.append(self._disconnect_device(device_id, handler, lock))
-
-        if disconnect_tasks:
-            await asyncio.gather(*disconnect_tasks, return_exceptions=True)
-
-        _LOGGER.info("Coordinator stopped.")
-
-    async def _disconnect_device(self, device_id: str, handler: BaseDeviceHandler, lock: asyncio.Lock):
-        """Gracefully disconnect a single device handler."""
-        async with lock: # Ensure no update is happening
-            try:
-                await handler.disconnect()
-                _LOGGER.info(f"Disconnected handler for {device_id}")
-            except Exception as e:
-                _LOGGER.error(f"Error disconnecting handler for {device_id}: {e}")
-
-    # Need to override this to ensure stop is called on shutdown
-    async def _handle_refresh_interval(self) -> None:
-        """Handle the refresh interval and stop if necessary."""
-        if self._stopping:
+        parser_cls = get_parser(service_info)
+        if not parser_cls:
+            _LOGGER.debug(f"No parser found for device {address}, skipping.")
             return
-        await super()._handle_refresh_interval()
 
-    # Keep get_last_seen if sensors need it, data comes from handler now
-    def get_last_seen(self, device_id: str) -> Optional[datetime]:
+        parser: BaseParser = parser_cls()
+        try:
+            parsed_data = parser.parse(service_info)
+            if parsed_data is None:
+                _LOGGER.debug(f"Parser for {address} returned None, skipping update.")
+                return
+
+            # Add metadata
+            parsed_data[ATTR_LAST_UPDATED] = datetime.now().isoformat()
+            parsed_data[ATTR_RSSI] = service_info.rssi
+
+            _LOGGER.debug(f"Parsed data for {address}: {parsed_data}")
+
+            # Update coordinator data
+            # Ensure data dict exists
+            if self.data is None:
+                self.data = {}
+            self.data[address] = parsed_data
+            self._last_seen[address] = datetime.now() # Update last seen time
+
+            # Notify listeners
+            self.async_set_updated_data(self.data)
+
+        except ParsingError as e:
+            _LOGGER.error(f"Error parsing data for {address}: {e}")
+        except Exception as e:
+            _LOGGER.exception(f"Unexpected error processing BLE data for {address}: {e}")
+
+
+    async def async_start(self) -> None:
+        """Start the passive scanner."""
+        _LOGGER.info("Starting BLE passive scanner")
+        # Ensure data is initialized
+        if self.data is None:
+            self.data = {}
+        # Register the scanner callback
+        # Use async_get_advertisement_callback to wrap our handler
+        wrapped_callback = async_get_advertisement_callback(self.hass, self._async_handle_bluetooth_event)
+        self._scanner_unregister_callback = async_register_scanner(self.hass, wrapped_callback, connectable=False)
+        _LOGGER.info("BLE passive scanner started and callback registered.")
+        # Trigger an initial update (optional, might be useful for cleanup)
+        await self.async_refresh()
+
+
+    async def async_stop(self) -> None:
+        """Stop the passive scanner."""
+        _LOGGER.info("Stopping BLE passive scanner")
+        if self._scanner_unregister_callback:
+            self._scanner_unregister_callback()
+            self._scanner_unregister_callback = None
+            _LOGGER.info("BLE scanner callback unregistered.")
+        # Perform any other cleanup if needed
+
+    async def _async_update_data(self) -> CoordinatorData:
+        """Periodically check for and remove stale devices."""
+        _LOGGER.debug("Running periodic check for stale BLE devices.")
+        now = datetime.now()
+        stale_devices = [
+            address
+            for address, last_seen_time in self._last_seen.items()
+            if (now - last_seen_time).total_seconds() > DEVICE_UNAVAILABLE_TIMEOUT
+        ]
+
+        updated = False
+        if stale_devices:
+            _LOGGER.info(f"Removing stale devices: {stale_devices}")
+            current_data = self.data or {}
+            for address in stale_devices:
+                if address in current_data:
+                    del current_data[address]
+                    updated = True
+                if address in self._last_seen:
+                    del self._last_seen[address]
+            self.data = current_data # Update self.data reference
+
+        # Return the current data (potentially cleaned)
+        # If data was changed, listeners will be notified by the coordinator base class
+        # if the data object reference itself changed, or if we call async_set_updated_data.
+        # Since we modify in place or reassign self.data, returning it should be sufficient.
+        _LOGGER.debug(f"Stale device check complete. Current devices: {list(self.data.keys() if self.data else [])}")
+        return self.data or {}
+
+
+    # Keep get_last_seen if sensors need it, data comes from internal tracking now
+    def get_last_seen(self, device_address: str) -> Optional[datetime]:
         """Get the last successful update timestamp for a device."""
-        handler = self._device_handlers.get(device_id.lower())
-        if handler:
-            return handler.last_update_time
-        return None
+        return self._last_seen.get(device_address.lower())
 
-
+    # --- Methods below are removed as they relate to active connections ---
+    # _get_device_identifier
+    # _find_device
+    # _update_single_device
+    # _disconnect_device
+    # _handle_refresh_interval (base class handles interval now for cleanup)

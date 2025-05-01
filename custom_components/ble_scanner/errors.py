@@ -12,7 +12,7 @@ class ConnectionError(BLEScannerError):
     """Raised when connection to a device fails."""
 
 class ParsingError(BLEScannerError):
-    """Raised when data parsing fails."""
+    """Error occurred during BLE data parsing."""
 
 class UnsupportedDeviceTypeError(BLEScannerError):
     """Raised when an unsupported device type is configured."""

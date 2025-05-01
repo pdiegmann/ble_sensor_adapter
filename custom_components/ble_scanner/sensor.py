@@ -1,8 +1,8 @@
 # custom_components/ble_scanner/sensor.py
 """Sensor platform for BLE Scanner integration."""
 import logging
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from datetime import datetime, timedelta # Keep timedelta if needed elsewhere, dt_util handles timezone
+from typing import Any, Dict, Optional, Set, Tuple # Added Set, Tuple
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -12,7 +12,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ( # Import necessary constants
-    CONF_ADDRESS,
+    CONF_ADDRESS, # Keep address constant
     PERCENTAGE,
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     UnitOfTemperature,
@@ -20,20 +20,21 @@ from homeassistant.const import ( # Import necessary constants
     UnitOfPressure,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import DeviceInfo # Import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType # Added for device info
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import dt as dt_util
+from homeassistant.util import dt as dt_util # Keep dt_util
 
 
 from .const import (
     DOMAIN,
     # CONF_DEVICES, # No longer needed here
-    CONF_DEVICE_ADDRESS, # Use this constant
-    CONF_DEVICE_NAME, # Still used for fallback naming
-    CONF_DEVICE_TYPE,
-    CONF_POLLING_INTERVAL,
-    DEFAULT_POLLING_INTERVAL,
+    # CONF_DEVICE_ADDRESS, # Not directly used in setup, derived from coordinator
+    # CONF_DEVICE_NAME, # Not directly used in setup, derived from coordinator
+    CONF_DEVICE_TYPE, # Used to identify device type from parsed data
+    # CONF_POLLING_INTERVAL, # Not used by sensor directly
+    # DEFAULT_POLLING_INTERVAL, # Not used by sensor directly
     DEVICE_EXPECTED_SENSORS,
     ATTR_LAST_UPDATED,
     ATTR_RSSI,
@@ -60,13 +61,9 @@ from .const import (
     KEY_S06_PRESSURE,
     KEY_S06_BATTERY,
 )
-from .coordinator import BLEScannerCoordinator
+from .coordinator import BLEScannerCoordinator, CoordinatorData # Import CoordinatorData type hint
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
-
-# How long before marking a device unavailable (factor of its polling interval)
-UNAVAILABLE_TIMEOUT_BASE = timedelta(seconds=60) # Base timeout
-UNAVAILABLE_TIMEOUT_FACTOR = 2.5 # Increased factor slightly
 
 # Sensor Descriptions (Optional but good practice for defining attributes)
 # Using a dictionary mapping sensor keys to descriptions
@@ -192,208 +189,213 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up sensor entities for a specific BLE device config entry."""
+    """Set up sensor entities dynamically from coordinator data."""
     coordinator: BLEScannerCoordinator = hass.data[DOMAIN][entry.entry_id]
-    sensors = []
 
-    # Get device details directly from the entry
-    device_address = entry.data[CONF_DEVICE_ADDRESS]
-    device_type = entry.data[CONF_DEVICE_TYPE]
-    # Use entry title as the primary name, fallback to type/address
-    device_name = entry.title or f"{device_type} {device_address}"
-    # Get polling interval from options, fallback to data, then default
-    polling_interval = entry.options.get(
-        CONF_POLLING_INTERVAL, entry.data.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
-    )
+    # Set to store ('address', 'sensor_key') tuples of added entities
+    added_entities: set[tuple[str, str]] = set()
 
-    _LOGGER.info(f"Setting up sensors for device: {device_address} (Name: {device_name}, Type: {device_type})")
+    @callback
+    def _async_update_sensors() -> None:
+        """Check coordinator data and add entities."""
+        new_entities = []
+        if not coordinator.data:
+            _LOGGER.debug("Coordinator has no data, skipping sensor update.")
+            return
 
-    expected_keys = DEVICE_EXPECTED_SENSORS.get(device_type, [])
-    if not expected_keys:
-        _LOGGER.warning(f"No sensor keys defined for device type {device_type} (Device: {device_address}). Only RSSI sensor will be created.")
-        # Still create RSSI sensor even if no others are defined
-        expected_keys = [] # Ensure loop below doesn't run if empty
+        # Iterate through devices found by the coordinator
+        for address, device_data in coordinator.data.items():
+            # Determine device type (assuming parser adds this key)
+            # TODO: Adjust key if parser uses a different one (e.g., 'model', 'type')
+            # Need a reliable way to get the device type from the parsed data.
+            # Let's assume the parser adds CONF_DEVICE_TYPE for now.
+            device_type = device_data.get(CONF_DEVICE_TYPE)
+            if not device_type:
+                # Try common model keys as fallback for type identification
+                # This depends heavily on parser implementation consistency
+                device_type = device_data.get(KEY_PF_MODEL_NAME) # Example fallback for Petkit
+                if not device_type:
+                     _LOGGER.warning(f"Device type not found in data for {address}, cannot create sensors. Data: {device_data}")
+                     continue # Skip this device if type cannot be determined
 
-    _LOGGER.debug(f"Expected sensor keys for {device_address}: {expected_keys}")
+            # Determine device name (e.g., from model name or fallback)
+            # TODO: Adjust key if parser uses a different one
+            device_name = device_data.get(KEY_PF_MODEL_NAME) or device_data.get(KEY_PF_ALIAS) or f"{device_type} {address}"
 
-    # Create sensors for expected keys for this specific device
-    for key in expected_keys:
-        sensors.append(
-            BLEDeviceSensor(
-                coordinator,
-                device_address, # Pass address as device_id
-                device_name,
-                device_type,
-                key,
-                # polling_interval, # Polling interval is handled by coordinator
-                entry.entry_id, # Pass entry_id for linking
-            )
-        )
+            # Get expected sensor keys for this device type
+            expected_keys = DEVICE_EXPECTED_SENSORS.get(device_type, [])
+            # Always include RSSI
+            all_keys_for_device = set(expected_keys) | {ATTR_RSSI}
 
-    # Always create RSSI sensor for this device
-    sensors.append(
-        BLEDeviceSensor(
-            coordinator,
-            device_address, # Pass address as device_id
-            device_name,
-            device_type,
-            ATTR_RSSI,
-            # polling_interval, # Polling interval is handled by coordinator
-            entry.entry_id, # Pass entry_id for linking
-        )
-    )
+            # Create sensors for this device if not already added
+            for sensor_key in all_keys_for_device:
+                # Only create sensor if the key is actually present in the device_data
+                if sensor_key in device_data:
+                    entity_tuple = (address, sensor_key)
+                    if entity_tuple not in added_entities:
+                        _LOGGER.info(f"Adding sensor '{sensor_key}' for device {address} (Type: {device_type})")
+                        new_entities.append(
+                            BLEDeviceSensor(
+                                coordinator,
+                                address,
+                                device_name,
+                                device_type, # Pass the determined type
+                                sensor_key,
+                                entry.entry_id,
+                            )
+                        )
+                        added_entities.add(entity_tuple)
+                # else: # Optional: Log if an expected key is missing
+                #     if sensor_key in expected_keys: # Only log if it was explicitly expected
+                #         _LOGGER.debug(f"Expected sensor key '{sensor_key}' not found in data for {address}")
 
-    if sensors:
-        _LOGGER.info(f"Adding {len(sensors)} sensor entities for {device_address}")
-        async_add_entities(sensors)
-    else:
-        _LOGGER.info(f"No sensors to add for {device_address}")
+
+        if new_entities:
+            async_add_entities(new_entities)
+
+        # Note: No explicit removal logic here. Sensors for devices that disappear
+        # from coordinator.data will become unavailable due to the `available` property.
+
+    # Add listener and trigger initial update
+    entry.async_on_unload(coordinator.async_add_listener(_async_update_sensors))
+    _async_update_sensors() # Run once on setup
 
 
 class BLEDeviceSensor(CoordinatorEntity[BLEScannerCoordinator], SensorEntity):
     """Representation of a Sensor for a BLE device attribute."""
 
     _attr_has_entity_name = True # Use device name + sensor key as entity name
+    # Prevent device from being added to HA device registry before we have device info
+    _attr_device_info = None
 
     def __init__(
         self,
         coordinator: BLEScannerCoordinator,
-        device_address: str, # Changed parameter name for clarity
-        device_name: str,
-        device_type: str,
+        device_address: str,
+        device_name: str, # Name determined dynamically
+        device_type: str, # Type determined dynamically
         sensor_key: str,
-        # polling_interval: int, # Removed, handled by coordinator
-        entry_id: str, # Keep entry_id parameter
+        entry_id: str,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._device_address = device_address # Store address
-        # self._device_name = device_name # Name comes from device info
-        self._device_type = device_type
+        self._device_address = device_address.lower() # Ensure lowercase address
+        self._device_type = device_type # Store type determined during setup
         self._sensor_key = sensor_key
-        # self._polling_interval = polling_interval # Removed
+        self._entry_id = entry_id # Store entry_id for device info
 
         # Generate unique ID: domain_deviceaddress_sensorkey
-        # Ensure address characters are valid for entity ID
-        safe_address = device_address.replace(":", "").lower()
+        safe_address = self._device_address.replace(":", "")
         self._attr_unique_id = f"{DOMAIN}_{safe_address}_{self._sensor_key}"
 
         # Apply SensorEntityDescription if available
         if description := SENSOR_DESCRIPTIONS.get(self._sensor_key):
             self.entity_description = description
-            # If description has translation_key, name is handled by HA
-            # Otherwise, set name explicitly if needed (or rely on _attr_has_entity_name)
-            # if not hasattr(description, "translation_key") and not self._attr_has_entity_name:
-            #      self._attr_name = self._get_sensor_friendly_name(sensor_key) # Let has_entity_name handle it
-
         else:
             # Fallback for keys not in SENSOR_DESCRIPTIONS
-            # Name is handled by _attr_has_entity_name = True
-            # self._attr_name = self._get_sensor_friendly_name(sensor_key)
             self._attr_state_class = SensorStateClass.MEASUREMENT # Default assumption
 
-        # Set device information
-        manufacturer = "Unknown"
-        if self._device_type == DEVICE_TYPE_PETKIT_FOUNTAIN:
-            manufacturer = "Petkit"
-        elif self._device_type == DEVICE_TYPE_S06_SOIL_TESTER:
-            manufacturer = "Generic" # Or Efento? Based on format
+        # Device info is set dynamically in _handle_coordinator_update
+        self._set_device_info(device_name) # Try setting initial device info
 
-        # Define device info using the DeviceInfo class
-        # Use the device_address as the primary identifier
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, self._device_address)}, # Use address here
-            name=device_name, # Use the name derived in async_setup_entry
-            manufacturer=manufacturer,
-            model=self._device_type,
-            # Link to the config entry that created this device/entity
-            # This allows grouping entities under the device in the UI
-            config_entry_id=entry_id,
-            # Optionally use via_device if there's a separate Bluetooth adapter entity
-            # via_device=(...),
-        )
         _LOGGER.debug(f"Initialized sensor: {self.unique_id} (Device: {self._device_address})")
 
+    def _set_device_info(self, device_name: str) -> None:
+        """Set device information based on current coordinator data."""
+        # Try to get more specific info from coordinator data
+        manufacturer = "Unknown"
+        model = self._device_type # Fallback model to type
+        sw_version = None # Placeholder
 
-    # def _get_sensor_friendly_name(self, key: str) -> str:
-    #     """Generate a user-friendly name for the sensor key (fallback)."""
-    #     # No longer needed if using translation keys or _attr_has_entity_name
-    #     return key.replace("_", " ").capitalize()
+        # Example: Extract more details if available in parsed data
+        # Adjust keys based on what parsers actually provide
+        device_data = self.coordinator.data.get(self._device_address, {}) if self.coordinator.data else {}
+        if self._device_type == DEVICE_TYPE_PETKIT_FOUNTAIN:
+            manufacturer = "Petkit"
+            model = device_data.get(KEY_PF_MODEL_NAME, self._device_type) # Use model name if present
+        elif self._device_type == DEVICE_TYPE_S06_SOIL_TESTER:
+            manufacturer = "Generic" # Or Efento?
+            # model = device_data.get("model_identifier", self._device_type) # Example
+
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, self._device_address)}, # Use address as unique identifier for the device
+            name=device_name, # Use dynamically determined name
+            manufacturer=manufacturer,
+            model=model,
+            sw_version=sw_version,
+            entry_type=DeviceEntryType.SERVICE, # Indicate it's provided by an integration service
+            #config_entry_id=self._entry_id, # Link to the integration's config entry
+        )
+
 
     @property
     def available(self) -> bool:
         """Return True if entity is available."""
-        # Check coordinator status first
-        if not self.coordinator.last_update_success:
-             # _LOGGER.debug(f"Sensor {self.unique_id} unavailable: Coordinator update failed.")
-             return False # Let coordinator handle logging failure reasons
-
-        last_seen = self.coordinator.get_last_seen() # Coordinator is per-device, no need for address arg
-        if last_seen is None:
-            # If coordinator succeeded but device wasn't seen (shouldn't happen if coordinator succeeded)
-            _LOGGER.debug(f"Sensor {self.unique_id} unavailable: Device {self._device_address} not seen in last successful update.")
-            return False
-
-        # Calculate unavailability timeout: base + factor * polling interval
-        # Get interval from options first, then data, then default
-        current_interval = self.coordinator.config_entry.options.get(
-            CONF_POLLING_INTERVAL, self.coordinator.config_entry.data.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
+        # Available if the coordinator is successful AND this device's address is in the data
+        # Coordinator's last_update_success check is handled by CoordinatorEntity base class
+        return (
+            super().available and # Check coordinator availability
+            self.coordinator.data is not None and
+            self._device_address in self.coordinator.data
         )
-        timeout_seconds = UNAVAILABLE_TIMEOUT_BASE.total_seconds() + (UNAVAILABLE_TIMEOUT_FACTOR * current_interval)
-        unavailability_threshold = dt_util.utcnow() - timedelta(seconds=timeout_seconds)
-
-        # Ensure last_seen is timezone-aware for comparison
-        if last_seen.tzinfo is None:
-            last_seen = dt_util.as_utc(last_seen)
-
-        is_available = last_seen >= unavailability_threshold
-        # Reduce log spam, only log when becoming unavailable
-        # if not is_available:
-        #      _LOGGER.warning(f"Sensor {self.unique_id} unavailable: Last seen {last_seen} is older than threshold {unavailability_threshold} (Timeout: {timeout_seconds}s)")
-
-        return is_available
 
     @property
     def native_value(self) -> Any:
         """Return the state of the sensor."""
         # Data is now structured per-device in the coordinator
-        if self.coordinator.data: # Check if coordinator data exists
-            # The coordinator's data should directly contain the state for this device
-            value = self.coordinator.data.get(self._sensor_key)
-            # _LOGGER.debug(f"Sensor {self.unique_id} value: {value}") # Verbose logging
+        if self.coordinator.data and self._device_address in self.coordinator.data:
+            value = self.coordinator.data[self._device_address].get(self._sensor_key)
+            # _LOGGER.debug(f"Sensor {self.unique_id} value: {value}") # Verbose
             return value
-        # _LOGGER.debug(f"Sensor {self.unique_id}: No data available in coordinator.")
-        return None # Return None if data is missing
+        # _LOGGER.debug(f"Sensor {self.unique_id}: No data available for device {self._device_address}.")
+        return None # Return None if device data or sensor key is missing
 
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
         """Return the state attributes."""
         attrs = {}
-        if self.coordinator.data:
-            device_data = self.coordinator.data # Data is specific to this device now
+        # Ensure data exists for the device before accessing attributes
+        if self.coordinator.data and self._device_address in self.coordinator.data:
+            device_data = self.coordinator.data[self._device_address]
+
+            # Add last updated time from the device's data block
             if ATTR_LAST_UPDATED in device_data:
                 attrs[ATTR_LAST_UPDATED] = device_data[ATTR_LAST_UPDATED]
-            # Add RSSI as attribute to all sensors except the RSSI sensor itself
+
+            # Add RSSI if this isn't the RSSI sensor itself
             if self._sensor_key != ATTR_RSSI and ATTR_RSSI in device_data:
                  attrs[ATTR_RSSI] = device_data[ATTR_RSSI]
 
-            # Add model name/code if available and not the sensor itself (Petkit specific)
+            # Add other relevant attributes from device_data if needed
+            # Example for Petkit: Use self._device_type determined during init
             if self._device_type == DEVICE_TYPE_PETKIT_FOUNTAIN:
-                if self._sensor_key != KEY_PF_MODEL_NAME and KEY_PF_MODEL_NAME in device_data:
-                    attrs["model_name"] = device_data[KEY_PF_MODEL_NAME] # Use snake_case for attr keys
-                if self._sensor_key != KEY_PF_MODEL_CODE and KEY_PF_MODEL_CODE in device_data:
-                    attrs["model_code"] = device_data[KEY_PF_MODEL_CODE]
-                if self._sensor_key != KEY_PF_ALIAS and KEY_PF_ALIAS in device_data:
-                    attrs["alias"] = device_data[KEY_PF_ALIAS]
+                 if self._sensor_key != KEY_PF_MODEL_NAME and KEY_PF_MODEL_NAME in device_data:
+                     attrs["model_name"] = device_data[KEY_PF_MODEL_NAME]
+                 if self._sensor_key != KEY_PF_MODEL_CODE and KEY_PF_MODEL_CODE in device_data:
+                     attrs["model_code"] = device_data[KEY_PF_MODEL_CODE]
+                 if self._sensor_key != KEY_PF_ALIAS and KEY_PF_ALIAS in device_data:
+                     attrs["alias"] = device_data[KEY_PF_ALIAS]
+                 # Add others as needed...
 
-        # Add config info for debugging/info
-        # attrs["device_type"] = self._device_type # Already in device info
-        # attrs["device_address"] = self._device_address # Already in device info identifiers
         return attrs
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        # Coordinator is per-device, so any update applies to this sensor
-        # _LOGGER.debug(f"Updating state for sensor {self.unique_id} (Device: {self._device_address})")
-        self.async_write_ha_state()
+        # Update device info if it hasn't been set yet or if relevant data changed
+        # This ensures manufacturer/model are updated if they appear later
+        if self._attr_device_info is None or \
+           (self._device_type == DEVICE_TYPE_PETKIT_FOUNTAIN and self._attr_device_info.get("model") == self._device_type):
+             # Attempt to update device info if missing or using fallback model
+             device_data = self.coordinator.data.get(self._device_address, {}) if self.coordinator.data else {}
+             device_name = device_data.get(KEY_PF_MODEL_NAME) or device_data.get(KEY_PF_ALIAS) or f"{self._device_type} {self._device_address}"
+             self._set_device_info(device_name)
+
+
+        # Only write state if this sensor's device address is present in the data
+        if self.coordinator.data and self._device_address in self.coordinator.data:
+            # _LOGGER.debug(f"Updating state for sensor {self.unique_id} (Device: {self._device_address})")
+            self.async_write_ha_state()
+        # else: # Optional: Log if device disappeared? Might be noisy.
+            # _LOGGER.debug(f"Skipping state write for sensor {self.unique_id}, device {self._device_address} not in coordinator data.")
+

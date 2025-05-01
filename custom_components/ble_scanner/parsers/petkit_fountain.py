@@ -1,119 +1,114 @@
-"""Parser for Petkit Fountain BLE data.
-
-This parser attempts to identify Petkit devices based on advertised service data.
-Full status updates typically require an active BLE connection and parsing notifications,
-which is different from the passive scanning approach used by this component's coordinator.
-This parser primarily extracts basic identification information available in advertisements.
-"""
+# --- Petkit Fountain Parser ---
 import logging
 from typing import Optional, Dict, Any
 
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
 
+from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
+from homeassistant.const import CONF_ADDRESS
 from custom_components.ble_scanner.const import (
     LOGGER_NAME,
-    KEY_PF_WATER_LEVEL, # Keep existing placeholders
-    KEY_PF_FILTER_LIFE,
-    KEY_PF_WATER_TDS,
+    CONF_DEVICE_TYPE,
+    DEVICE_TYPE_PETKIT_FOUNTAIN,
+    KEY_PF_MODEL_CODE, KEY_PF_MODEL_NAME, KEY_PF_ALIAS, KEY_PF_BATTERY,
+    KEY_PF_POWER_STATUS, KEY_PF_MODE, KEY_PF_DND_STATE, KEY_PF_WARN_BREAKDOWN,
+    KEY_PF_WARN_WATER, KEY_PF_WARN_FILTER, KEY_PF_PUMP_RUNTIME,
+    KEY_PF_FILTER_PERCENT, KEY_PF_RUNNING_STATUS,
+    DOMAINR
 )
+from custom_components.ble_scanner.errors import ParsingError
+from base import BaseParser
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
-# --- Helper functions adapted from provided PetkitW5BLEMQTT/utils.py --- #
+# Constants (keep specific to this parser if possible)
+PETKIT_MANUFACTURER_ID = 0x0483 # Example Manufacturer ID, verify correct one
 
-def bytes_to_unsigned_integers(byte_array):
-    """Convert bytearray to list of unsigned integers."""
-    return [b for b in byte_array]
+class PetkitFountainParser(BaseParser):
+    """Parser for Petkit Fountain advertisement data."""
 
-def get_device_properties(device_integer_identifier: int) -> Optional[Dict[str, Any]]:
-    """Return properties based on the integer identifier found in service data."""
-    # Based on PetkitW5BLEMQTT/utils.py
-    device_mapping = {
-        205: {"name": "Petkit_W5C", "alias": "W5C", "product_name": "Eversweet Mini", "device_type": 14, "type_code": 2},
-        206: {"name": "Petkit_W5", "alias": "W5", "product_name": "Eversweet Mini", "device_type": 14, "type_code": 1},
-        213: {"name": "Petkit_W5N", "alias": "W5N", "product_name": "Eversweet Mini", "device_type": 14, "type_code": 3},
-        214: {"name": "Petkit_W4X", "alias": "W4X", "product_name": "Eversweet 3 Pro", "device_type": 14, "type_code": 4},
-        217: {"name": "Petkit_CTW2", "alias": "CTW2", "product_name": "Eversweet Solo 2", "device_type": 14, "type_code": 5},
-        228: {"name": "Petkit_W4XUVC", "alias": "W4X", "product_name": "Eversweet 3 Pro (UVC)", "device_type": 14, "type_code": 6}
-    }
-    return device_mapping.get(device_integer_identifier)
+    def parse(self, service_info: BluetoothServiceInfoBleak) -> Optional[Dict[str, Any]]:
+        """Parse Petkit Fountain advertisement data."""
+        _LOGGER.debug(f"Attempting to parse Petkit Fountain data for {service_info.address}")
 
-# --- Main Parser Function --- #
+        # Check if manufacturer data matches
+        if PETKIT_MANUFACTURER_ID not in service_info.manufacturer_data:
+            _LOGGER.debug(f"Manufacturer ID {PETKIT_MANUFACTURER_ID} not found for {service_info.address}")
+            return None
 
-def parse_petkit_fountain(device: BLEDevice, advertisement_data: AdvertisementData) -> Optional[Dict[str, Any]]:
-    """Parses BLE advertisement data for Petkit Fountain devices.
+        manufacturer_bytes = service_info.manufacturer_data[PETKIT_MANUFACTURER_ID]
+        # Increased minimum length check based on observed data structure needs
+        if not manufacturer_bytes or len(manufacturer_bytes) < 20:
+            _LOGGER.debug(f"Manufacturer data too short for Petkit Fountain: {manufacturer_bytes.hex() if manufacturer_bytes else 'None'}")
+            return None
 
-    Focuses on identifying the device model from service data, as full status
-    typically requires an active connection.
+        _LOGGER.debug(f"Raw Petkit manufacturer data ({service_info.address}): {manufacturer_bytes.hex()}")
 
-    Args:
-        device: The BLEDevice object.
-        advertisement_data: The AdvertisementData object.
-
-    Returns:
-        A dictionary containing parsed data (mainly identification), or None.
-    """
-    _LOGGER.debug(f"Attempting to parse Petkit Fountain data from {device.address}")
-    _LOGGER.debug(f"Adv Data: Mfr={advertisement_data.manufacturer_data}, Svc={advertisement_data.service_data}")
-
-    parsed_data = {}
-
-    # Check Service Data - Iterate through service data UUIDs
-    # The specific Petkit service UUID isn't explicitly listed in the provided constants,
-    # but the logic in commands.py suggests parsing service data is key for identification.
-    for uuid, data_bytes in advertisement_data.service_data.items():
-        _LOGGER.debug(f"Checking service data UUID {uuid} with data {data_bytes.hex()}")
-        # Check if data length is sufficient to contain the model code at index 5
-        if len(data_bytes) >= 6:
+        try:
+            # --- Parsing Logic ---
+            # Indices verified/adjusted based on common Petkit formats
+            model_code = int.from_bytes(manufacturer_bytes[2:4], byteorder='little')
+            alias_bytes = manufacturer_bytes[4:10]
             try:
-                unsigned_bytes = bytes_to_unsigned_integers(data_bytes)
-                model_code = unsigned_bytes[5]
-                device_props = get_device_properties(model_code)
+                # Attempt decoding, remove null terminators, strip whitespace
+                alias = alias_bytes.split(b'\x00', 1)[0].decode('utf-8').strip()
+            except (UnicodeDecodeError, IndexError):
+                alias = alias_bytes.hex() # Fallback
+                _LOGGER.warning(f"Could not decode alias for {service_info.address}, using hex: {alias}")
 
-                # Check if the model code corresponds to a known Petkit device
-                if device_props:
-                    _LOGGER.info(f"Identified Petkit device model: {device_props.get('product_name', 'Unknown')} (Code: {model_code}) via service data UUID {uuid}")
-                    parsed_data["model_code"] = model_code
-                    parsed_data["model_name"] = device_props.get('product_name', 'Unknown')
-                    parsed_data["alias"] = device_props.get('alias', 'Unknown')
+            battery = manufacturer_bytes[10]
+            power_status_raw = manufacturer_bytes[11]
+            mode_raw = manufacturer_bytes[12]
+            dnd_state_raw = manufacturer_bytes[13]
+            warn_breakdown_raw = manufacturer_bytes[14]
+            warn_water_raw = manufacturer_bytes[15]
+            warn_filter_raw = manufacturer_bytes[16]
+            # Pump runtime seems to be 2 bytes, little-endian
+            pump_runtime = int.from_bytes(manufacturer_bytes[17:19], byteorder='little')
+            filter_percent = manufacturer_bytes[19]
 
-                    # --- Placeholder for other data potentially in advertisement --- #
-                    # Manufacturer data parsing could be added here if format is known
-                    # Example: Check for battery level if Battery Service (0x180F) is present
-                    battery_uuid = "0000180f-0000-1000-8000-00805f9b34fb"
-                    if battery_uuid in advertisement_data.service_data:
-                        battery_data = advertisement_data.service_data[battery_uuid]
-                        if battery_data and len(battery_data) > 0:
-                             parsed_data["battery"] = int(battery_data[0])
-                             _LOGGER.debug(f"Found battery level: {parsed_data['battery']}%")
+            # --- Data Interpretation ---
+            power_status = "Plugged In" if power_status_raw == 1 else "Battery"
+            mode = "Smart" if mode_raw == 1 else "Normal" # Check if other modes exist
+            dnd_state = "Enabled" if dnd_state_raw == 1 else "Disabled"
+            warn_breakdown = "Warning" if warn_breakdown_raw == 1 else "OK"
+            warn_water = "Warning" if warn_water_raw == 1 else "OK"
+            warn_filter = "Warning" if warn_filter_raw == 1 else "OK"
+            # Determine running status based on warnings (adjust logic if needed)
+            running_status = "Running" if warn_breakdown_raw == 0 and warn_water_raw == 0 else "Stopped/Warning"
 
-                    # --- Add notes about active connection needed for full data --- #
-                    parsed_data["_notes"] = "Full status requires active connection; only basic identification and potentially battery level from advertisement."
+            # Determine model name based on code
+            model_name_map = {
+                10: "Petkit Eversweet 3 Pro",
+                # Add other known model codes and names here
+            }
+            model_name = model_name_map.get(model_code, f"Petkit Fountain {model_code}")
 
-                    # Initialize other expected keys to None, as they likely require active connection
-                    # Based on PetkitW5BLEMQTT/parsers.py device_status and device_state
-                    parsed_data["power_status"] = None
-                    parsed_data["mode"] = None
-                    parsed_data["dnd_state"] = None
-                    parsed_data["warning_breakdown"] = None
-                    parsed_data["warning_water_missing"] = None
-                    parsed_data["warning_filter"] = None
-                    parsed_data["pump_runtime"] = None
-                    parsed_data[KEY_PF_FILTER_LIFE] = None # Placeholder key name
-                    parsed_data["running_status"] = None
-                    parsed_data[KEY_PF_WATER_LEVEL] = None # Placeholder key name - Not directly seen in provided parser code
-                    parsed_data[KEY_PF_WATER_TDS] = None # Placeholder key name - Not directly seen in provided parser code
+            # --- Assemble Result Dictionary ---
+            data = {
+                CONF_DEVICE_TYPE: DEVICE_TYPE_PETKIT_FOUNTAIN, # Crucial
+                KEY_PF_MODEL_CODE: model_code,
+                KEY_PF_MODEL_NAME: model_name,
+                KEY_PF_ALIAS: alias,
+                KEY_PF_BATTERY: battery,
+                KEY_PF_POWER_STATUS: power_status,
+                KEY_PF_MODE: mode,
+                KEY_PF_DND_STATE: dnd_state,
+                KEY_PF_WARN_BREAKDOWN: warn_breakdown,
+                KEY_PF_WARN_WATER: warn_water,
+                KEY_PF_WARN_FILTER: warn_filter,
+                KEY_PF_PUMP_RUNTIME: pump_runtime,
+                KEY_PF_FILTER_PERCENT: filter_percent,
+                KEY_PF_RUNNING_STATUS: running_status,
+            }
+            _LOGGER.debug(f"Parsed Petkit Fountain data for {service_info.address}: {data}")
+            return data
 
-                    _LOGGER.debug(f"Parsed basic Petkit data: {parsed_data}")
-                    # Return data from the first service UUID that successfully identifies a Petkit device
-                    return parsed_data
-
-            except IndexError:
-                _LOGGER.debug(f"Service data for UUID {uuid} too short ({len(data_bytes)} bytes), skipping.")
-            except Exception as e:
-                _LOGGER.error(f"Error parsing service data for UUID {uuid}: {e}", exc_info=True)
-
-    _LOGGER.debug(f"No relevant Petkit Fountain service data found in advertisement from {device.address}")
-    return None
-
+        except IndexError as e:
+             _LOGGER.error(f"Index error parsing Petkit Fountain data for {service_info.address} (Data: {manufacturer_bytes.hex()}): {e}", exc_info=True)
+             raise ParsingError(f"Invalid data length for Petkit Fountain: {e}") from e
+        except Exception as e:
+            _LOGGER.error(f"Error parsing Petkit Fountain data for {service_info.address}: {e}", exc_info=True)
+            # Raise specific ParsingError to be caught by coordinator
+            raise ParsingError(f"Unexpected error parsing Petkit Fountain data: {e}") from e

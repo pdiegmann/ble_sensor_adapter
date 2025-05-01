@@ -17,7 +17,7 @@ from homeassistant.helpers.selector import ( # Import selectors for options flow
 )
 from homeassistant.helpers.update_coordinator import UpdateFailed # Removed DataUpdateCoordinator
 
-from .const import DOMAIN, CONF_DEVICE_ADDRESS, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL, LOGGER_NAME # Adjusted imports
+from .const import DOMAIN, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL, LOGGER_NAME # Removed CONF_DEVICE_ADDRESS
 from .coordinator import BLEScannerCoordinator
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
@@ -26,78 +26,70 @@ _LOGGER = logging.getLogger(LOGGER_NAME)
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up BLE Scanner from a config entry (represents a single device)."""
+    """Set up the single BLE Scanner integration instance from a config entry."""
+    # Ensure DOMAIN key exists in hass.data
     hass.data.setdefault(DOMAIN, {})
-    # Use .get() to safely retrieve the address and check if it exists
-    address = entry.data.get(CONF_DEVICE_ADDRESS)
-    if not address:
-        _LOGGER.error(
-            f"Config entry {entry.entry_id} ('{entry.title}') is missing the required "
-            f"'{CONF_DEVICE_ADDRESS}' key in its data. This might be due to an old or "
-            f"corrupted entry. Please remove the device integration via the UI and add it again."
-        )
-        raise ConfigEntryNotReady(f"Configuration key '{CONF_DEVICE_ADDRESS}' missing for {entry.title or entry.entry_id}")
+    _LOGGER.info(f"Setting up BLE Scanner integration (Entry ID: {entry.entry_id})")
+    _LOGGER.debug(f"Config Entry Data: {entry.data}")
+    _LOGGER.debug(f"Config Entry Options: {entry.options}")
 
-    _LOGGER.info(f"Setting up BLE Scanner for device: {address}")
-    _LOGGER.debug(f"Config Entry Data for {address}: {entry.data}")
-    _LOGGER.debug(f"Config Entry Options for {address}: {entry.options}")
-
-    # Create the coordinator for this specific device entry
-    # Pass the entry itself, coordinator will extract details
+    # Create the single coordinator instance for the integration
+    # Pass the entry itself; coordinator will extract polling interval etc.
     coordinator = BLEScannerCoordinator(hass, entry)
 
-    # Perform the first refresh to catch connection issues early
+    # Perform the first refresh (might involve initial BLE scan or setup)
     try:
         await coordinator.async_config_entry_first_refresh()
     except ConfigEntryNotReady:
-        # Let HA handle retries
-        _LOGGER.warning(f"Initial connection failed for {address}, setup will be retried")
+        # Let HA handle retries if the coordinator indicates it's not ready
+        _LOGGER.warning("BLE Scanner coordinator not ready, setup will be retried")
         raise
     except UpdateFailed as err:
         # Log specific error but still raise ConfigEntryNotReady
-        _LOGGER.error(f"Error connecting to device {address} during setup: {err}")
-        raise ConfigEntryNotReady(f"Could not connect to {address}") from err
+        _LOGGER.error(f"Error during initial BLE Scanner setup: {err}")
+        raise ConfigEntryNotReady(f"BLE Scanner setup failed: {err}") from err
 
-
+    # Store the single coordinator instance
     hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    # Set up platforms (sensor) for this device entry
+    # Start the passive scanner
+    await coordinator.async_start()
+
+    # Set up platforms (e.g., sensor) associated with this integration instance
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Set up options listener
+    # Set up options listener to handle changes (e.g., polling interval)
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
-    _LOGGER.info(f"BLE Scanner setup complete for device: {address}")
+    _LOGGER.info("BLE Scanner integration setup complete.")
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
-    address = entry.data.get(CONF_DEVICE_ADDRESS, entry.entry_id) # Use address if available
-    _LOGGER.info(f"Unloading BLE Scanner integration for device: {address}")
+    """Unload the BLE Scanner integration instance."""
+    _LOGGER.info(f"Unloading BLE Scanner integration (Entry ID: {entry.entry_id})")
 
-    # Unload platforms associated with this entry
+    # Unload platforms associated with this integration instance
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
-        # Clean up coordinator and data for this specific entry
+        # Clean up the single coordinator and its data
         if entry.entry_id in hass.data[DOMAIN]:
              coordinator: BLEScannerCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
-             await coordinator.async_stop() # Ensure coordinator stops BLE connections etc.
-             _LOGGER.info(f"BLE Scanner coordinator stopped and data removed for device: {address}")
+             await coordinator.async_stop() # Ensure coordinator stops BLE scanning etc.
+             _LOGGER.info("BLE Scanner coordinator stopped and data removed.")
         else:
-             _LOGGER.warning(f"Coordinator for {address} (entry_id: {entry.entry_id}) not found in hass.data during unload.")
+             _LOGGER.warning(f"Coordinator for BLE Scanner (entry_id: {entry.entry_id}) not found in hass.data during unload.")
 
-
-    _LOGGER.info(f"BLE Scanner integration unload status for {address}: {unload_ok}")
+    _LOGGER.info(f"BLE Scanner integration unload status: {unload_ok}")
     return unload_ok
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Handle options update."""
-    address = entry.data.get(CONF_DEVICE_ADDRESS, entry.entry_id)
-    _LOGGER.debug(f"Options updated for {address}, reloading entry...")
+    """Handle options update for the single integration instance."""
+    _LOGGER.debug(f"Options updated for BLE Scanner (Entry ID: {entry.entry_id}), reloading entry...")
     # Reload the entry to apply changes (e.g., polling interval)
+    # This will trigger async_unload_entry and async_setup_entry
     await hass.config_entries.async_reload(entry.entry_id)
-    _LOGGER.debug(f"Entry {address} reloaded after options update.")
+    _LOGGER.debug(f"BLE Scanner entry (Entry ID: {entry.entry_id}) reloaded after options update.")
 
 # Add options flow definition
 async def async_get_options_flow(
@@ -161,11 +153,10 @@ class BLEScannerOptionsFlowHandler(config_entries.OptionsFlow):
         )
 
         # Get device name for title/description
-        device_name = self.config_entry.title or self.config_entry.data.get(CONF_DEVICE_ADDRESS)
-
+        # Use a generic description placeholder as it applies to the whole integration
         return self.async_show_form(
-            step_id="device_options", # Matches strings.json key
+            step_id="device_options", # Keep step_id for strings.json compatibility if needed
             data_schema=options_schema,
-            description_placeholders={"name": device_name},
-            errors=errors, # Pass errors dictionary
+            description_placeholders={"name": "BLE Scanner Integration"}, # Generic name
+            errors=errors,
         )

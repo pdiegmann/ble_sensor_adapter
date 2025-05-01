@@ -1,11 +1,10 @@
 # custom_components/ble_scanner/config_flow.py
 """Config flow for BLE Scanner integration."""
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional # Keep Dict, Any
 
 import voluptuous as vol
-from bleak.backends.device import BLEDevice
-from bleak.backends.scanner import AdvertisementData
+# Remove bleak imports not needed for basic config
 
 from homeassistant import config_entries
 from homeassistant.components.bluetooth import (
@@ -13,15 +12,13 @@ from homeassistant.components.bluetooth import (
     async_discovered_service_info,
 )
 from homeassistant.const import CONF_ADDRESS, CONF_NAME
-from homeassistant.core import callback
+# Remove callback as it's not used directly here now
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
-    SelectOptionDict,
-    SelectSelector,
-    SelectSelectorConfig,
+# Remove Select Selectors as we won't select device/type here
 )
 
 # Use absolute imports consistently
@@ -32,7 +29,7 @@ from .const import (
     DEFAULT_POLLING_INTERVAL,
     DOMAIN,
     LOGGER_NAME,
-    SUPPORTED_DEVICE_TYPES,
+    # SUPPORTED_DEVICE_TYPES, # Remove type selection from config flow
 )
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
@@ -45,145 +42,44 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         """Initialize the config flow."""
-        self._discovered_devices: Dict[str, BluetoothServiceInfoBleak] = {}
-        self._selected_address: Optional[str] = None
+        # No need to store discovered devices or selected address here anymore
+        pass
 
     async def async_step_user(
         self, user_input: Optional[Dict[str, Any]] = None
     ) -> FlowResult:
         """Handle the initial step."""
-        # This flow is initiated by the user clicking "Add Integration"
-        # We start discovery here.
-        _LOGGER.debug("Starting user step, initiating BLE discovery")
-        self._discovered_devices.clear()
-        # Use connectable=True to potentially filter for devices we can interact with
-        for service_info in async_discovered_service_info(self.hass, connectable=True):
-            # Filter out devices without a name for user selection clarity
-            # You might add more sophisticated filtering based on service UUIDs etc.
-            # if service_info.name: # Keep devices even without name for now
-            self._discovered_devices[service_info.address] = service_info
-            _LOGGER.debug(f"Discovered connectable: {service_info.name} ({service_info.address})")
+        # Check if an entry already exists, making this a singleton integration
+        # Using DOMAIN as the unique identifier for the single instance
+        await self.async_set_unique_id(DOMAIN)
+        self._abort_if_unique_id_configured()
 
-        if not self._discovered_devices:
-            _LOGGER.warning("No connectable BLE devices found during initial scan.")
-            # Also check non-connectable devices for broader discovery, might be needed for passive scanning
-            _LOGGER.debug("Checking non-connectable devices...")
-            for service_info in async_discovered_service_info(self.hass, connectable=False):
-                 if service_info.address not in self._discovered_devices:
-                    self._discovered_devices[service_info.address] = service_info
-                    _LOGGER.debug(f"Discovered non-connectable: {service_info.name} ({service_info.address})")
-
-        if not self._discovered_devices:
-             _LOGGER.error("No BLE devices found during scan (connectable or non-connectable).")
-             return self.async_abort(reason="no_devices_found")
-
-
-        # If discovery yields results, proceed to device selection
-        return await self.async_step_select_device()
-
-    async def async_step_select_device(
-        self, user_input: Optional[Dict[str, Any]] = None
-    ) -> FlowResult:
-        """Handle device selection step."""
-        if user_input is not None:
-            self._selected_address = user_input[CONF_DEVICE_ADDRESS]
-            _LOGGER.debug(f"User selected device address: {self._selected_address}")
-
-            # Abort if this device (by MAC address) is already configured
-            await self.async_set_unique_id(self._selected_address)
-            self._abort_if_unique_id_configured()
-
-            return await self.async_step_device_config()
-
-        # Prepare device list for selection
-        discovered_devices_options = [
-            SelectOptionDict(
-                value=address,
-                # Use name if available, otherwise address
-                label=f"{service_info.name or 'Unknown Name'} ({address})",
-            )
-            for address, service_info in self._discovered_devices.items()
-        ]
-
-        # Sort options by label (name or address)
-        discovered_devices_options.sort(key=lambda x: x["label"])
-
-
-        return self.async_show_form(
-            step_id="select_device",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_DEVICE_ADDRESS): SelectSelector(
-                        SelectSelectorConfig(
-                            options=discovered_devices_options, mode="dropdown"
-                        )
-                    )
-                }
-            ),
-            description_placeholders={
-                "devices_count": len(discovered_devices_options)
-            },
-            last_step=False, # Indicate there are more steps
-        )
-
-    async def async_step_device_config(
-        self, user_input: Optional[Dict[str, Any]] = None
-    ) -> FlowResult:
-        """Handle device configuration step (type, interval)."""
         errors: Dict[str, str] = {}
 
         if user_input is not None:
-            # Combine selected address with user input for type/interval
-            device_data = {
-                CONF_DEVICE_ADDRESS: self._selected_address,
-                CONF_DEVICE_TYPE: user_input[CONF_DEVICE_TYPE],
-                CONF_POLLING_INTERVAL: user_input[CONF_POLLING_INTERVAL],
-            }
-            _LOGGER.debug(f"Creating config entry with data: {device_data}")
+            # User has submitted the configuration (polling interval)
+            polling_interval = user_input.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
+            _LOGGER.debug(f"Creating BLE Scanner entry with polling interval: {polling_interval}")
+            return self.async_create_entry(
+                title="BLE Scanner", # Fixed title for the single instance
+                data={CONF_POLLING_INTERVAL: polling_interval},
+            )
 
-            # Get device name from discovery results for the title
-            device_info = self._discovered_devices.get(self._selected_address)
-            # Use discovered name, fallback to type + address if no name
-            title = device_info.name if device_info and device_info.name else f"{user_input[CONF_DEVICE_TYPE]} {self._selected_address}"
-
-            return self.async_create_entry(title=title, data=device_data)
-
-        # Schema for device type and polling interval
-        device_config_schema = vol.Schema(
+        # Show form to configure the integration (just polling interval)
+        config_schema = vol.Schema(
             {
-                vol.Required(CONF_DEVICE_TYPE): SelectSelector(
-                    SelectSelectorConfig(
-                        options=[
-                            SelectOptionDict(value=t, label=t)
-                            for t in SUPPORTED_DEVICE_TYPES
-                        ],
-                        mode="dropdown",
-                    )
-                ),
                 vol.Optional(
                     CONF_POLLING_INTERVAL, default=DEFAULT_POLLING_INTERVAL
                 ): NumberSelector(
                     NumberSelectorConfig(
-                        min=30,
-                        max=3600,
-                        step=1,
-                        mode=NumberSelectorMode.BOX,
-                        unit_of_measurement="seconds",
+                        min=30, max=3600, step=1, mode=NumberSelectorMode.BOX, unit_of_measurement="seconds"
                     )
                 ),
             }
         )
-
-        device_info = self._discovered_devices.get(self._selected_address)
-        device_name = device_info.name if device_info and device_info.name else "Unknown Device"
-
         return self.async_show_form(
-            step_id="device_config",
-            data_schema=device_config_schema,
-            description_placeholders={
-                CONF_NAME: device_name,
-                CONF_ADDRESS: self._selected_address,
-            },
+            step_id="user", # Use the user step ID
+            data_schema=config_schema,
             errors=errors,
             last_step=True, # Final configuration step before creation
         )
@@ -193,31 +89,22 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, discovery_info: BluetoothServiceInfoBleak
     ) -> FlowResult:
         """Handle bluetooth discovery."""
+        # This step might need rethinking or removal in the new model.
+        # For now, let's just prevent configuration via discovery if already configured.
         address = discovery_info.address
         _LOGGER.debug(f"Discovered device via Bluetooth: {discovery_info.name} ({address})")
 
-        await self.async_set_unique_id(address)
-        # Use CONF_ADDRESS consistently
-        self._abort_if_unique_id_configured(updates={CONF_ADDRESS: address})
+        # If the singleton instance is already configured, abort discovery flow.
+        if self._async_current_entries():
+            return self.async_abort(reason="already_configured")
 
-        # Check if device type is supported based on discovery (if possible)
-        # This part is highly dependent on how devices advertise themselves
-        # Example: if "Petkit" in discovery_info.name:
-        #    supported = True # Or check service UUIDs etc.
-        # else:
-        #    supported = False
-        # if not supported:
-        #    return self.async_abort(reason="unsupported_device")
+        # We might want to trigger the user step instead, but for now,
+        # let's prevent auto-configuration via discovery if not already set up.
+        # If we wanted discovery to *initiate* the singleton setup, we'd call
+        # return await self.async_step_user() here, potentially passing discovery info.
+        # However, the current goal is just *one* config entry, usually user-initiated.
+        _LOGGER.info("BLE Scanner not configured. Please add it manually via Integrations.")
+        return self.async_abort(reason="manual_setup_required")
 
-        # Store discovery info for later steps
-        self._discovered_devices[address] = discovery_info
-        self._selected_address = address
 
-        # Directly proceed to device configuration step
-        # Context allows skipping selection if triggered by discovery
-        self.context["title_placeholders"] = {"name": discovery_info.name or address} # Use address if name is missing
-        return await self.async_step_device_config()
-
-# Remove the old Options Flow Handler as it's replaced by per-device config entries
-# class BLEScannerOptionsFlowHandler(config_entries.OptionsFlow):
-#    ... (Old code removed) ...
+# Options flow is not needed for this simple singleton configuration

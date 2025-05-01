@@ -1,63 +1,91 @@
 {
-    "config": {
-        "step": {
-            "user": {
-                "title": "BLE Scanner Setup",
-                "description": "Configure the global settings for the BLE Scanner.",
-                "data": {
-                    "log_level": "Log Level"
-                }
-            }
-        },
-        "abort": {
-            "single_instance_allowed": "Only one instance of BLE Scanner can be configured."
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add BLE Scanner Device",
+        "description": "Scanning for nearby Bluetooth LE devices..."
+      },
+      "select_device": {
+        "title": "Select BLE Device",
+        "description": "Found {devices_count} device(s). Choose the device you want to add.",
+        "data": {
+          "device_address": "Device"
         }
+      },
+      "device_config": {
+        "title": "Configure BLE Device: {name}",
+        "description": "Configure settings for '{name}' ({address}).",
+        "data": {
+          "device_type": "Device Type",
+          "polling_interval": "Polling Interval (seconds)"
+        }
+      }
     },
-    "options": {
-        "step": {
-            "init": {
-                "title": "BLE Scanner Options"
-            },
-            "modify_log_level": {
-                "title": "Modify Log Level",
-                "description": "Set the global logging level for the BLE Scanner component.",
-                "data": {
-                    "log_level": "Log Level"
-                }
-            },
-            "manage_devices": {
-                "title": "Manage BLE Devices",
-                "description": "Add or remove BLE devices to be scanned.\n\nCurrent Devices:\n{devices_list}"
-            },
-            "add_device": {
-                "title": "Add BLE Device",
-                "description": "Enter the details for the new BLE device.",
-                "data": {
-                    "name": "Device Name (Friendly Name)",
-                    "address": "MAC Address (Optional, leave blank to scan by name)",
-                    "type": "Device Type",
-                    "polling_interval": "Polling Interval (seconds)"
-                }
-            },
-            "remove_device": {
-                "title": "Remove BLE Device",
-                "description": "Select a device to remove from the configuration.",
-                "data": {
-                    "device_to_remove": "Select Device to Remove"
-                }
-            }
-        },
-        "error": {
-            "base": {
-                "name_or_address_required": "Please provide either a Device Name or a MAC Address.",
-                "invalid_selection": "Invalid selection."
-            },
-            "address": {
-                 "address_already_configured": "This MAC Address is already configured."
-            },
-            "name": {
-                 "name_must_be_unique_without_address": "Device Name must be unique if no MAC Address is provided."
-            }
-        }
+    "error": {
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "unknown": "[%key:common::config_flow::error::unknown%]"
+    },
+    "abort": {
+      "no_devices_found": "No Bluetooth LE devices found nearby. Ensure Bluetooth is enabled on your Home Assistant host and the device is powered on and discoverable.",
+      "already_configured": "Device with address {address} is already configured.",
+      "unsupported_device": "This device was discovered but is not currently supported by the BLE Scanner integration."
     }
+  },
+  "options": {
+     "step": {
+       "device_options": {
+         "title": "Adjust BLE Scanner Device Options",
+         "description": "Modify options for {name}.",
+          "data": {
+             "polling_interval": "Polling Interval (seconds)"
+          }
+       }
+     },
+     "error": {
+        "invalid_interval": "Invalid polling interval. Must be between 30 and 3600 seconds."
+     }
+  },
+  "entity": {
+    "sensor": {
+      "signal_strength": {
+        "name": "Signal Strength"
+      },
+      "battery_level": {
+        "name": "Battery Level"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "humidity": {
+        "name": "Humidity"
+      },
+      "illuminance": {
+        "name": "Illuminance"
+      },
+      "moisture": {
+        "name": "Moisture"
+      },
+      "conductivity": {
+        "name": "Conductivity"
+      },
+      "ph": {
+        "name": "pH"
+      },
+      "water_level": {
+        "name": "Water Level"
+      },
+      "tds": {
+        "name": "TDS"
+      },
+      "uv_index": {
+         "name": "UV Index"
+      },
+      "filter_life": {
+         "name": "Filter Life Remaining"
+      },
+      "water_quality": {
+         "name": "Water Quality"
+      }
+    }
+  }
 }

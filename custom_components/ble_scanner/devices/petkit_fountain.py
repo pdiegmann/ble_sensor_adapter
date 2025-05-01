@@ -156,62 +156,77 @@ class PetkitFountainHandler(BaseDeviceHandler):
     def _parse_device_state(self, payload: bytes):
         """Parse response from CMD_GET_DEVICE_STATE (210)."""
         if len(payload) >= 12:
-            # Based on PetkitW5BLEMQTT/parsers.py device_state
-            self._latest_data[KEY_PF_POWER_STATUS] = "On" if payload[0] == 1 else "Off"
-            self._latest_data[KEY_PF_MODE] = "Smart" if payload[1] == 2 else "Normal"
-            self._latest_data[KEY_PF_WARN_BREAKDOWN] = bool(payload[2])
-            self._latest_data[KEY_PF_WARN_WATER] = bool(payload[3])
-            self._latest_data[KEY_PF_WARN_FILTER] = bool(payload[4])
-            # Filter life seems complex, involves calculation based on runtime/days
-            # Let's parse the raw values first
-            filter_days_remaining = payload[5]
-            pump_runtime_minutes = int.from_bytes(payload[6:10], byteorder='little') # Assuming little-endian based on some parsers
-            self._latest_data["filter_days_remaining_raw"] = filter_days_remaining
-            self._latest_data[KEY_PF_PUMP_RUNTIME] = pump_runtime_minutes * 60 # Convert to seconds
+            try:
+                # Based on PetkitW5BLEMQTT/parsers.py device_state
+                self._latest_data[KEY_PF_POWER_STATUS] = "On" if payload[0] == 1 else "Off"
+                self._latest_data[KEY_PF_MODE] = "Smart" if payload[1] == 2 else "Normal"
+                self._latest_data[KEY_PF_WARN_BREAKDOWN] = bool(payload[2])
+                self._latest_data[KEY_PF_WARN_WATER] = bool(payload[3])
+                self._latest_data[KEY_PF_WARN_FILTER] = bool(payload[4])
+                # Filter life seems complex, involves calculation based on runtime/days
+                # Let's parse the raw values first
+                filter_days_remaining = payload[5]
+                # Ensure slice has enough bytes before converting
+                if len(payload) >= 10:
+                    pump_runtime_minutes = int.from_bytes(payload[6:10], byteorder='little') # Assuming little-endian based on some parsers
+                    self._latest_data["filter_days_remaining_raw"] = filter_days_remaining
+                    self._latest_data[KEY_PF_PUMP_RUNTIME] = pump_runtime_minutes * 60 # Convert to seconds
+                else:
+                     self.logger.warning("Device state payload too short for pump runtime.")
+                     # Avoid setting potentially incorrect values if data is missing
+                     self._latest_data.pop(KEY_PF_PUMP_RUNTIME, None)
+                     self._latest_data.pop("filter_days_remaining_raw", None)
 
-            # Calculate filter percentage (approximate, based on common 30-day cycle)
-            # This might need adjustment based on specific model/filter type
-            if filter_days_remaining <= 0:
-                self._latest_data[KEY_PF_FILTER_PERCENT] = 0
-            else:
-                # Assuming a max of 30 days for simplicity, might be wrong
-                self._latest_data[KEY_PF_FILTER_PERCENT] = round(max(0, min(100, (filter_days_remaining / 30) * 100)))
+                # Calculate filter percentage (approximate, based on common 30-day cycle)
+                # This might need adjustment based on specific model/filter type
+                if filter_days_remaining <= 0:
+                    self._latest_data[KEY_PF_FILTER_PERCENT] = 0
+                else:
+                    # Assuming a max of 30 days for simplicity, might be wrong
+                    self._latest_data[KEY_PF_FILTER_PERCENT] = round(max(0, min(100, (filter_days_remaining / 30) * 100)))
 
-            self._latest_data[KEY_PF_RUNNING_STATUS] = "Running" if payload[10] == 1 else "Idle" # Pump status?
-            # payload[11] seems unused or unknown in example
-            self.logger.debug(f"Parsed device state: {self._latest_data}")
+                if len(payload) >= 11:
+                    self._latest_data[KEY_PF_RUNNING_STATUS] = "Running" if payload[10] == 1 else "Idle" # Pump status?
+                else:
+                    self.logger.warning("Device state payload too short for running status.")
+                    self._latest_data.pop(KEY_PF_RUNNING_STATUS, None)
+
+                # payload[11] seems unused or unknown in example
+                self.logger.debug(f"Parsed device state: {self._latest_data}")
+            except IndexError:
+                self.logger.error(f"IndexError parsing device state payload: {payload.hex()}", exc_info=True)
+            except Exception as e:
+                 self.logger.error(f"Unexpected error parsing device state payload: {e}", exc_info=True)
         else:
              self.logger.warning(f"Device state payload too short: {len(payload)} bytes")
 
     def _parse_device_config(self, payload: bytes):
         """Parse response from CMD_GET_DEVICE_CONFIG (211)."""
-        if len(payload) >= 14:
-             # Based on PetkitW5BLEMQTT/parsers.py device_config
-             # smart_time_on = payload[0]
-             # smart_time_off = payload[1]
-             # led_switch = payload[2]
-             # led_brightness = payload[3]
-             # led_light_time_on_1 = payload[4]
-             # led_light_time_on_2 = payload[5]
-             # led_light_time_off_1 = payload[6]
-             # led_light_time_off_2 = payload[7]
-             dnd_switch = payload[8]
-             # dnd_time_start_1 = payload[9]
-             # dnd_time_start_2 = payload[10]
-             # dnd_time_end_1 = payload[11]
-             # dnd_time_end_2 = payload[12]
-             # is_locked = payload[13]
-             self._latest_data[KEY_PF_DND_STATE] = "On" if dnd_switch == 1 else "Off"
-             self.logger.debug(f"Parsed device config (DND State): {self._latest_data[KEY_PF_DND_STATE]}")
+        if len(payload) >= 9: # Need at least 9 bytes to read dnd_switch at index 8
+             try:
+                 # Based on PetkitW5BLEMQTT/parsers.py device_config
+                 # ... (other unused values)
+                 dnd_switch = payload[8]
+                 self._latest_data[KEY_PF_DND_STATE] = "On" if dnd_switch == 1 else "Off"
+                 self.logger.debug(f"Parsed device config (DND State): {self._latest_data.get(KEY_PF_DND_STATE)}")
+             except IndexError:
+                 self.logger.error(f"IndexError parsing device config payload: {payload.hex()}", exc_info=True)
+             except Exception as e:
+                 self.logger.error(f"Unexpected error parsing device config payload: {e}", exc_info=True)
         else:
              self.logger.warning(f"Device config payload too short: {len(payload)} bytes")
 
     def _parse_battery(self, payload: bytes):
         """Parse response from CMD_GET_BATTERY (66)."""
         if len(payload) >= 1:
-            battery_level = payload[0]
-            self._latest_data[KEY_PF_BATTERY] = battery_level
-            self.logger.debug(f"Parsed battery level: {battery_level}%")
+            try:
+                battery_level = payload[0]
+                self._latest_data[KEY_PF_BATTERY] = battery_level
+                self.logger.debug(f"Parsed battery level: {battery_level}%")
+            except IndexError: # Should not happen with len check, but for safety
+                 self.logger.error(f"IndexError parsing battery payload: {payload.hex()}", exc_info=True)
+            except Exception as e:
+                 self.logger.error(f"Unexpected error parsing battery payload: {e}", exc_info=True)
         else:
             self.logger.warning("Battery payload too short")
 

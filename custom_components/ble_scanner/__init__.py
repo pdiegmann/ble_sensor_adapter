@@ -28,7 +28,16 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up BLE Scanner from a config entry (represents a single device)."""
     hass.data.setdefault(DOMAIN, {})
-    address = entry.data[CONF_DEVICE_ADDRESS] # Get address from data
+    # Use .get() to safely retrieve the address and check if it exists
+    address = entry.data.get(CONF_DEVICE_ADDRESS)
+    if not address:
+        _LOGGER.error(
+            f"Config entry {entry.entry_id} ('{entry.title}') is missing the required "
+            f"'{CONF_DEVICE_ADDRESS}' key in its data. This might be due to an old or "
+            f"corrupted entry. Please remove the device integration via the UI and add it again."
+        )
+        raise ConfigEntryNotReady(f"Configuration key '{CONF_DEVICE_ADDRESS}' missing for {entry.title or entry.entry_id}")
+
     _LOGGER.info(f"Setting up BLE Scanner for device: {address}")
     _LOGGER.debug(f"Config Entry Data for {address}: {entry.data}")
     _LOGGER.debug(f"Config Entry Options for {address}: {entry.options}")

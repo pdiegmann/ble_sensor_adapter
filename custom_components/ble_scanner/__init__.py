@@ -64,7 +64,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         # Clean up coordinator and data
         coordinator: BLEScannerCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
-        await coordinator.stop_scan()
+        await coordinator.async_stop() # Call the correct stop method
         _LOGGER.info("BLE Scanner coordinator stopped and data removed")
 
     _LOGGER.info(f"BLE Scanner integration unload status: {unload_ok}")

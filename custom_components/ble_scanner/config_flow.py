@@ -88,7 +88,7 @@ class BLEScannerOptionsFlowHandler(config_entries.OptionsFlow):
         """Initialize options flow."""
         # Options contain both log_level and devices list
         # self.config_entry is available from the base class
-        self.options = dict(self.config_entry.options)
+        self.options = dict(config_entry.options) # Use the argument passed to __init__
         # Ensure devices list exists
         if CONF_DEVICES not in self.options:
             self.options[CONF_DEVICES] = []

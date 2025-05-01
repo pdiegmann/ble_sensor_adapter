@@ -23,7 +23,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 
-from .const import (
+from custom_components.ble_scanner.const import (
     DOMAIN,
     CONF_DEVICE_TYPE, # Needed to get device type from config entry
     DEVICE_EXPECTED_SENSORS,
@@ -52,7 +52,7 @@ from .const import (
     KEY_S06_PRESSURE,
     KEY_S06_BATTERY,
 )
-from .coordinator import BLEScannerCoordinator # Removed CoordinatorData
+from custom_components.ble_scanner.coordinator import BLEScannerCoordinator # Removed CoordinatorData
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
@@ -276,5 +276,3 @@ class BleSensor(CoordinatorEntity[BLEScannerCoordinator], SensorEntity):
                  attrs[ATTR_RSSI] = self.coordinator.data[ATTR_RSSI]
 
         return attrs
-
-    # Removed _handle_coordinator_update method (handled by CoordinatorEntity)

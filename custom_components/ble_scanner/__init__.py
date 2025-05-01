@@ -17,8 +17,8 @@ from homeassistant.helpers.selector import ( # Import selectors for options flow
 )
 from homeassistant.helpers.update_coordinator import UpdateFailed # Removed DataUpdateCoordinator
 
-from .const import DOMAIN, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL, LOGGER_NAME # Removed CONF_DEVICE_ADDRESS
-from .coordinator import BLEScannerCoordinator
+from custom_components.ble_scanner.const import DOMAIN, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL, LOGGER_NAME # Removed CONF_DEVICE_ADDRESS
+from custom_components.ble_scanner.coordinator import BLEScannerCoordinator
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 

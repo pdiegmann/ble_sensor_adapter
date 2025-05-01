@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 
 # Need to import const from the parent directory
-from ..const import (
+from custom_components.ble_scanner.const import (
     LOGGER_NAME,
     CONF_DEVICE_TYPE,
     DEVICE_TYPE_PETKIT_FOUNTAIN,
@@ -18,12 +18,12 @@ from ..const import (
     KEY_S06_TEMP, KEY_S06_RH, KEY_S06_PRESSURE, KEY_S06_BATTERY,
 )
 # Import ParsingError if defined
-from ..errors import ParsingError
+from custom_components.ble_scanner.errors import ParsingError
 
-from .base import BaseParser
-from .petkit_fountain import PETKIT_MANUFACTURER_ID, PetkitFountainParser
-from .s_06_soil_tester import S06SoilTesterParser
-from ..devices.s_06_soil_tester import S06_SERVICE_UUID # Use relative import
+from custom_components.ble_scanner.parsers.base import BaseParser
+from custom_components.ble_scanner.parsers.petkit_fountain import PETKIT_MANUFACTURER_ID, PetkitFountainParser
+from custom_components.ble_scanner.parsers.s_06_soil_tester import S06SoilTesterParser
+from custom_components.ble_scanner.devices.s_06_soil_tester import S06_SERVICE_UUID # Use relative import
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 

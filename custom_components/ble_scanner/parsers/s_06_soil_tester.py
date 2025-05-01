@@ -26,7 +26,7 @@ from custom_components.ble_scanner.const import (
     # KEY_S06_PH, # Removed
 )
 from custom_components.ble_scanner.errors import ParsingError
-from .base import BaseParser
+from custom_components.ble_scanner.parsers.base import BaseParser
 
 
 _LOGGER = logging.getLogger(LOGGER_NAME)

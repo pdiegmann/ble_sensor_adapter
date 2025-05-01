@@ -24,7 +24,7 @@ import homeassistant.helpers.device_registry as dr # Import device registry help
 
 
 # Use absolute imports consistently
-from .const import (
+from custom_components.ble_scanner.const import (
     CONF_DEVICE_ADDRESS, # Keep this
     # CONF_DEVICE_TYPE, # Remove type selection
     # CONF_POLLING_INTERVAL, # Remove polling interval

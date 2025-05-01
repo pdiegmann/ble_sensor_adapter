@@ -16,11 +16,7 @@
     "options": {
         "step": {
             "init": {
-                "title": "BLE Scanner Options",
-                "menu_options": {
-                    "modify_log_level": "Modify Global Log Level",
-                    "manage_devices": "Manage Devices"
-                }
+                "title": "BLE Scanner Options"
             },
             "modify_log_level": {
                 "title": "Modify Log Level",
@@ -31,11 +27,7 @@
             },
             "manage_devices": {
                 "title": "Manage BLE Devices",
-                "description": "Add or remove BLE devices to be scanned.\n\nCurrent Devices:\n{devices_list}",
-                "menu_options": {
-                    "add_device": "Add New Device",
-                    "remove_device": "Remove Existing Device"
-                }
+                "description": "Add or remove BLE devices to be scanned.\n\nCurrent Devices:\n{devices_list}"
             },
             "add_device": {
                 "title": "Add BLE Device",
@@ -43,7 +35,7 @@
                 "data": {
                     "name": "Device Name (Friendly Name)",
                     "address": "MAC Address (Optional, leave blank to scan by name)",
-                    "device_type": "Device Type",
+                    "type": "Device Type",
                     "polling_interval": "Polling Interval (seconds)"
                 }
             },
@@ -56,10 +48,16 @@
             }
         },
         "error": {
-            "name_or_address_required": "Please provide either a Device Name or a MAC Address.",
-            "address_already_configured": "This MAC Address is already configured.",
-            "name_must_be_unique_without_address": "Device Name must be unique if no MAC Address is provided.",
-            "invalid_selection": "Invalid selection."
+            "base": {
+                "name_or_address_required": "Please provide either a Device Name or a MAC Address.",
+                "invalid_selection": "Invalid selection."
+            },
+            "address": {
+                 "address_already_configured": "This MAC Address is already configured."
+            },
+            "name": {
+                 "name_must_be_unique_without_address": "Device Name must be unique if no MAC Address is provided."
+            }
         }
     }
 }

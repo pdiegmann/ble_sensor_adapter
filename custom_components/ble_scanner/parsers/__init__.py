@@ -20,10 +20,10 @@ from ..const import (
 # Import ParsingError if defined
 from ..errors import ParsingError
 
-from base import BaseParser
-from petkit_fountain import PETKIT_MANUFACTURER_ID, PetkitFountainParser
-from s_06_soil_tester import S06SoilTesterParser
-from custom_components.ble_scanner.devices.s_06_soil_tester import S06_SERVICE_UUID
+from .base import BaseParser
+from .petkit_fountain import PETKIT_MANUFACTURER_ID, PetkitFountainParser
+from .s_06_soil_tester import S06SoilTesterParser
+from ..devices.s_06_soil_tester import S06_SERVICE_UUID # Use relative import
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 

@@ -17,8 +17,8 @@ from custom_components.ble_scanner.const import (
     KEY_PF_FILTER_PERCENT, KEY_PF_RUNNING_STATUS,
     DOMAINR
 )
-from custom_components.ble_scanner.errors import ParsingError
-from base import BaseParser
+from ..errors import ParsingError  # Use relative import
+from .base import BaseParser  # Use relative import
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 

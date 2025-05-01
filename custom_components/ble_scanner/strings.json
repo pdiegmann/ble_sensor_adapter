@@ -1,0 +1,65 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "BLE Scanner Setup",
+                "description": "Configure the global settings for the BLE Scanner.",
+                "data": {
+                    "log_level": "Log Level"
+                }
+            }
+        },
+        "abort": {
+            "single_instance_allowed": "Only one instance of BLE Scanner can be configured."
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "BLE Scanner Options",
+                "menu_options": {
+                    "modify_log_level": "Modify Global Log Level",
+                    "manage_devices": "Manage Devices"
+                }
+            },
+            "modify_log_level": {
+                "title": "Modify Log Level",
+                "description": "Set the global logging level for the BLE Scanner component.",
+                "data": {
+                    "log_level": "Log Level"
+                }
+            },
+            "manage_devices": {
+                "title": "Manage BLE Devices",
+                "description": "Add or remove BLE devices to be scanned.\n\nCurrent Devices:\n{devices_list}",
+                "menu_options": {
+                    "add_device": "Add New Device",
+                    "remove_device": "Remove Existing Device"
+                }
+            },
+            "add_device": {
+                "title": "Add BLE Device",
+                "description": "Enter the details for the new BLE device.",
+                "data": {
+                    "name": "Device Name (Friendly Name)",
+                    "address": "MAC Address (Optional, leave blank to scan by name)",
+                    "device_type": "Device Type",
+                    "polling_interval": "Polling Interval (seconds)"
+                }
+            },
+            "remove_device": {
+                "title": "Remove BLE Device",
+                "description": "Select a device to remove from the configuration.",
+                "data": {
+                    "device_to_remove": "Select Device to Remove"
+                }
+            }
+        },
+        "error": {
+            "name_or_address_required": "Please provide either a Device Name or a MAC Address.",
+            "address_already_configured": "This MAC Address is already configured.",
+            "name_must_be_unique_without_address": "Device Name must be unique if no MAC Address is provided.",
+            "invalid_selection": "Invalid selection."
+        }
+    }
+}

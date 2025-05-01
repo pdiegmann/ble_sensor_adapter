@@ -18,7 +18,8 @@ from homeassistant.helpers.selector import ( # Import selectors for options flow
 from homeassistant.helpers.update_coordinator import UpdateFailed # Removed DataUpdateCoordinator
 
 from custom_components.ble_scanner.const import DOMAIN, CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL, LOGGER_NAME # Removed CONF_DEVICE_ADDRESS
-from custom_components.ble_scanner.coordinator import BLEScannerCoordinator
+# Removed coordinator import from top level
+# from custom_components.ble_scanner.coordinator import BLEScannerCoordinator
 
 _LOGGER = logging.getLogger(LOGGER_NAME)
 
@@ -27,6 +28,9 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up BLE Scanner from a config entry."""
+    # Import coordinator here, just before it's needed
+    from custom_components.ble_scanner.coordinator import BLEScannerCoordinator # MOVED HERE
+
     # Ensure DOMAIN key exists in hass.data
     hass.data.setdefault(DOMAIN, {})
     _LOGGER.info(f"Setting up BLE Scanner entry (ID: {entry.entry_id})")

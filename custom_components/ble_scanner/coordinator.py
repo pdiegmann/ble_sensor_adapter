@@ -25,7 +25,7 @@ from custom_components.ble_scanner.const import (
 )
 # Import base handler and factory function (assuming it exists)
 # Ensure this path is correct and get_device_handler exists
-from custom_components.ble_scanner.devices import BaseDeviceHandler, get_device_handler
+from custom_components.ble_scanner.devices import HANDLER_MAP, BaseDeviceHandler, get_device_handler
 
 
 _LOGGER = logging.getLogger(LOGGER_NAME)

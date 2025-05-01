@@ -66,6 +66,7 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             SelectOptionDict(value=dt, label=dt.replace("-", " ").title())
             for dt in SUPPORTED_DEVICE_TYPES
         ]
+        _LOGGER.debug(f"Device type options: {device_type_options}")
 
         schema = vol.Schema(
             {
@@ -75,6 +76,7 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
         if user_input is not None:
+            _LOGGER.debug(f"User input received: {user_input}")
             address = user_input[CONF_DEVICE_ADDRESS]
             device_type = user_input[CONF_DEVICE_TYPE]
             await self.async_set_unique_id(address, raise_on_progress=False)
@@ -91,13 +93,14 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except Exception as e:
                 _LOGGER.warning(f"Could not retrieve device name for {address}: {e}")
 
-            _LOGGER.debug(f"Creating BLE Scanner entry for device: {title} ({address}), type: {device_type}")
+            entry_data = {
+                CONF_DEVICE_ADDRESS: address,
+                CONF_DEVICE_TYPE: device_type,
+            }
+            _LOGGER.debug(f"Creating BLE Scanner entry for device: {title} ({address}), entry_data: {entry_data}")
             return self.async_create_entry(
                 title=title,
-                data={
-                    CONF_DEVICE_ADDRESS: address,
-                    CONF_DEVICE_TYPE: device_type,
-                },
+                data=entry_data,
             )
 
         if not available_devices:

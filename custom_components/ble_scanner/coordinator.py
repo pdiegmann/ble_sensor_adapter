@@ -59,7 +59,9 @@ class BleScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
             # Pass the specific device config part of the entry data if needed
             # Assuming entry.data contains necessary info like type, name, address
             device_config = entry.data
-            self._device_handler: BaseDeviceHandler = get_device_handler(device_config)
+            _LOGGER.debug(f"device_config type: {type(device_config)}, value: {device_config}")
+            _LOGGER.debug(f"self._device_type type: {type(self._device_type)}, value: {self._device_type}")
+            self._device_handler: BaseDeviceHandler = get_device_handler(self._device_type)
             # Use device name from handler if available, otherwise address
             coordinator_name = f"{DOMAIN} {self._device_handler.name or self._device_address}"
         except ImportError:

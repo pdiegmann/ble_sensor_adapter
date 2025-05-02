@@ -4,7 +4,19 @@
   "bluetooth": [
     {
       "connectable": true,
-      "local_name": "*"
+      "local_name": "S-06*"
+    },
+    {
+      "connectable": true,
+      "local_name": "s-06*"
+    },
+    {
+      "connectable": true,
+      "manufacturer_id": "Petkit_*"
+    },
+    {
+      "connectable": true,
+      "manufacturer_id": "petkit_*"
     }
   ],
   "codeowners": ["@pdiegmann"],

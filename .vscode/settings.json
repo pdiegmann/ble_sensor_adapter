@@ -17,5 +17,6 @@
         "plaintext": false,
         "markdown": false,
         "scminput": false
-    }
+    },
+    "python.defaultInterpreterPath": "/Users/philhennel/.local/share/mise/installs/python/3.12.10/bin/python"
 }

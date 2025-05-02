@@ -14,6 +14,7 @@ from bleak import BleakClient, BleakError
 from bleak.backends.device import BLEDevice
 
 from custom_components.ble_scanner.const import (
+    DEVICE_TYPE_PETKIT_FOUNTAIN,
     DOMAIN,
     CONF_POLLING_INTERVAL,
     DEFAULT_POLLING_INTERVAL,

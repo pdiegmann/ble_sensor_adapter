@@ -14,11 +14,11 @@ from homeassistant.helpers.dispatcher import (
 )
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from custom_components.ble_sensor.device_types.petkit_fountain import PetkitFountain
-from custom_components.ble_sensor.device_types.soil_tester import SoilTester
+from custom_components.ble_sensor.devices.device_types.petkit_fountain import PetkitFountain
+from custom_components.ble_sensor.devices.device_types.soil_tester import SoilTester
 
-from custom_components.ble_sensor.bluetooth import BLEConnection
-from custom_components.ble_sensor.const import (
+from custom_components.ble_sensor.utils.bluetooth import BLEConnection
+from custom_components.ble_sensor.utils.const import (
     CONF_DEVICE_TYPE,
     CONF_MAC,
     CONF_POLL_INTERVAL,
@@ -28,8 +28,8 @@ from custom_components.ble_sensor.const import (
     SIGNAL_DEVICE_AVAILABLE,
     SIGNAL_DEVICE_UNAVAILABLE,
 )
-from custom_components.ble_sensor.device import BLEDevice
-from custom_components.ble_sensor.device_types import get_device_type
+from custom_components.ble_sensor.devices.device import BLEDevice
+from custom_components.ble_sensor.devices.device_types import get_device_type
 
 _LOGGER = logging.getLogger(__name__)
 

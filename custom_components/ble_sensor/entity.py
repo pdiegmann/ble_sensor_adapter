@@ -13,7 +13,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription
 )
 
-from custom_components.ble_sensor.const import DOMAIN, SIGNAL_DEVICE_UPDATE
+from custom_components.ble_sensor.utils.const import DOMAIN, SIGNAL_DEVICE_UPDATE
 from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
 
 class BLESensorEntity(CoordinatorEntity[BLESensorDataUpdateCoordinator], Entity):

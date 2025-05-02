@@ -9,7 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_MAC
 from homeassistant.core import HomeAssistant
 
-from custom_components.ble_sensor.const import CONF_DEVICE_TYPE, DOMAIN, CONF_MAC
+from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, DOMAIN, CONF_MAC
 
 _LOGGER = logging.getLogger(__name__)
 

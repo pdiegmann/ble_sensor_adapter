@@ -14,7 +14,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
-from custom_components.ble_sensor.const import (
+from custom_components.ble_sensor.utils.const import (
     CONF_DEVICE_TYPE,
     CONF_MAC,
     CONF_POLL_INTERVAL,

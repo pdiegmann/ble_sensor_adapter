@@ -19,15 +19,17 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass
 )
+from homeassistant.components.select import SelectEntityDescription
+from homeassistant.components.switch import SwitchEntityDescription
 
-from custom_components.ble_sensor.device import BLEDevice, DeviceData
-from custom_components.ble_sensor.const import (
+from custom_components.ble_sensor.devices.device import BLEDevice, DeviceData
+from custom_components.ble_sensor.utils.const import (
     KEY_S06_TEMP,
     KEY_S06_RH,
     KEY_S06_PRESSURE,
     KEY_S06_BATTERY,
 )
-from custom_components.ble_sensor.device_types.base import BaseDeviceData, DeviceType
+from custom_components.ble_sensor.devices.device_types.base import BaseDeviceData, DeviceType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,6 +75,14 @@ class SoilTester(DeviceType):
         return SoilTesterData
     
     def get_binary_sensor_descriptions(self) -> List[BinarySensorEntityDescription]:
+        return []
+    
+    def get_switch_descriptions(self) -> List[SwitchEntityDescription]:
+        """Return switch entity descriptions for this device type."""
+        return []
+    
+    def get_select_descriptions(self) -> List[SelectEntityDescription]:
+        """Return select entity descriptions for this device type."""
         return []
 
     def get_sensor_descriptions(self) -> List[SensorEntityDescription]:

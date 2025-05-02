@@ -5,14 +5,13 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Type, Union
 
-from homeassistant.components.sensor import (
-    SensorEntityDescription
-)
-from homeassistant.components.binary_sensor import (
-    BinarySensorEntityDescription
-)
+from homeassistant.components.sensor import SensorEntityDescription
+from homeassistant.components.binary_sensor import BinarySensorEntityDescription
 
-from custom_components.ble_sensor.device import BLEDevice, DeviceData
+from homeassistant.components.select import SelectEntityDescription
+from homeassistant.components.switch import SwitchEntityDescription
+
+from custom_components.ble_sensor.devices.device import BLEDevice, DeviceData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,9 +58,9 @@ class DeviceType(ABC):
         """Return the device data class for this device type."""
         pass
 
-    def get_entity_descriptions(self) -> List[Union[SensorEntityDescription, BinarySensorEntityDescription]]:
+    def get_entity_descriptions(self) -> List[Union[SensorEntityDescription, BinarySensorEntityDescription, SwitchEntityDescription, SelectEntityDescription]]:
         """Return all entity descriptions for this device type."""
-        return self.get_sensor_descriptions() + self.get_binary_sensor_descriptions()
+        return self.get_sensor_descriptions() + self.get_binary_sensor_descriptions() + self.get_switch_descriptions() + self.get_select_descriptions()
 
     @abstractmethod
     def get_sensor_descriptions(self) -> List[SensorEntityDescription]:
@@ -69,6 +68,16 @@ class DeviceType(ABC):
 
     @abstractmethod
     def get_binary_sensor_descriptions(self) -> List[BinarySensorEntityDescription]:
+        pass
+
+    @abstractmethod
+    def get_switch_descriptions(self) -> List[SwitchEntityDescription]:
+        """Return switch entity descriptions for this device type."""
+        pass
+    
+    @abstractmethod
+    def get_select_descriptions(self) -> List[SelectEntityDescription]:
+        """Return select entity descriptions for this device type."""
         pass
         
     def create_device(self, mac_address: str) -> BLEDevice:

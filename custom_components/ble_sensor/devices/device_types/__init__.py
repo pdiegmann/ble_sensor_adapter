@@ -1,10 +1,10 @@
 """Device types for BLE Sensor integration."""
 from typing import Dict, Type
 
-from custom_components.ble_sensor.device_types.base import DeviceType
+from custom_components.ble_sensor.devices.device_types.base import DeviceType
 
-from custom_components.ble_sensor.device_types.petkit_fountain import PetkitFountain
-from custom_components.ble_sensor.device_types.soil_tester import SoilTester
+from custom_components.ble_sensor.devices.device_types.petkit_fountain import PetkitFountain
+from custom_components.ble_sensor.devices.device_types.soil_tester import SoilTester
 
 # Map of device type name to device type class
 DEVICE_TYPE_MAP: Dict[str, Type[DeviceType]] = {

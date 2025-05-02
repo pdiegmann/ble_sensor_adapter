@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional, TypeVar, Generic, Type, Protocol
 
-from custom_components.ble_sensor.const import DOMAIN
+from custom_components.ble_sensor.utils.const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 

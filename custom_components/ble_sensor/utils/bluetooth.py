@@ -19,7 +19,7 @@ from homeassistant.components.bluetooth import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from custom_components.ble_sensor.const import SIGNAL_DEVICE_AVAILABLE, SIGNAL_DEVICE_UNAVAILABLE
+from custom_components.ble_sensor.utils.const import SIGNAL_DEVICE_AVAILABLE, SIGNAL_DEVICE_UNAVAILABLE
 
 _LOGGER = logging.getLogger(__name__)
 

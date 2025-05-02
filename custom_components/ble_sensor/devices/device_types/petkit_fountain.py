@@ -30,8 +30,8 @@ from homeassistant.const import (
 from bleak import BleakClient
 from bleak.exc import BleakError
 
-from custom_components.ble_sensor.device import BLEDevice, DeviceData
-from custom_components.ble_sensor.const import (
+from custom_components.ble_sensor.devices.device import BLEDevice, DeviceData
+from custom_components.ble_sensor.utils.const import (
     KEY_PF_MODEL_CODE,
     KEY_PF_MODEL_NAME,
     KEY_PF_ALIAS,
@@ -46,7 +46,7 @@ from custom_components.ble_sensor.const import (
     KEY_PF_FILTER_PERCENT,
     KEY_PF_RUNNING_STATUS,
 )
-from custom_components.ble_sensor.device_types.base import BaseDeviceData, DeviceType
+from custom_components.ble_sensor.devices.device_types.base import BaseDeviceData, DeviceType
 
 _LOGGER = logging.getLogger(__name__)
 

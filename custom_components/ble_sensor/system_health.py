@@ -6,7 +6,7 @@ from typing import Any, Dict
 from homeassistant.components import system_health
 from homeassistant.core import HomeAssistant, callback
 
-from custom_components.ble_sensor.const import DOMAIN, SYSTEM_HEALTH_INFO
+from custom_components.ble_sensor.utils.const import DOMAIN, SYSTEM_HEALTH_INFO
 
 @callback
 def async_register(

@@ -23,13 +23,19 @@ async def async_setup_entry(
     device_type = get_device_type(entry.data[CONF_DEVICE_TYPE])
     
     # Create entities
+    _LOGGER.debug("Setting up switch entities for device type: %s", device_type.__class__.__name__)
     entities = []
-    for description in device_type.get_switch_descriptions():
+    switch_descriptions = device_type.get_switch_descriptions()
+    _LOGGER.debug("Found %d switch descriptions: %s", len(switch_descriptions), switch_descriptions)
+    for description in switch_descriptions:
         entity = BLESwitchEntity(coordinator, description)
         entities.append(entity)
             
     if entities:
+        _LOGGER.debug("Adding %d switch entities", len(entities))
         async_add_entities(entities)
+    else:
+        _LOGGER.debug("No switch entities to add for this device type.")
 
 
 class BLESwitchEntity(BLESensorEntity, SwitchEntity):

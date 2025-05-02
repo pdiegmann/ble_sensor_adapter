@@ -24,13 +24,19 @@ async def async_setup_entry(
     device_type = get_device_type(entry.data[CONF_DEVICE_TYPE])
     
     # Create entities
+    _LOGGER.debug("Setting up select entities for device type: %s", device_type.__class__.__name__)
     entities = []
-    for description in device_type.get_select_descriptions():
+    select_descriptions = device_type.get_select_descriptions()
+    _LOGGER.debug("Found %d select descriptions: %s", len(select_descriptions), select_descriptions)
+    for description in select_descriptions:
         entity = BLESelectEntity(coordinator, description)
         entities.append(entity)
             
     if entities:
+        _LOGGER.debug("Adding %d select entities", len(entities))
         async_add_entities(entities)
+    else:
+        _LOGGER.debug("No select entities to add for this device type.")
 
 class BLESelectEntity(BLESensorEntity, SelectEntity):
     """Representation of a BLE select."""

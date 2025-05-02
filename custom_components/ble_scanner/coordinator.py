@@ -95,7 +95,6 @@ class BleScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
             self._device_handler = None # Indicate handler is missing
             coordinator_name = f"{DOMAIN} {self._device_address} (Handler Setup Error)"
 
-
         super().__init__(
             hass,
             _LOGGER,
@@ -137,16 +136,20 @@ class BleScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
 
         _LOGGER.debug(f"[{self.name}] Attempting to fetch data")
 
+        _LOGGER.info(f"[{self.name}] Starting update cycle for {self._device_address}") # Added log
         # 1. Get BLEDevice
+        _LOGGER.debug(f"[{self.name}] Searching for BLE device with address: {self._device_address}") # Added log
         ble_device: BLEDevice | None = bluetooth.async_ble_device_from_address(
             self.hass, self._device_address, connectable=True
         )
         if not ble_device:
             _LOGGER.warning(f"[{self.name}] Device {self._device_address} not found or not connectable. Will retry.")
+            _LOGGER.error(f"[{self.name}] BLE device {self._device_address} not found by bluetooth.async_ble_device_from_address. Is it in range and powered on?") # Added log
             # Return previous data if available, otherwise None to indicate no update
             return self.data if self.data else None
 
         # 2. Connect and Fetch Data
+        _LOGGER.debug(f"[{self.name}] Found BLE device: {ble_device.name} ({ble_device.address}). Attempting connection...") # Added log
         client = BleakClient(ble_device)
         try:
             # Set a reasonable timeout for the connection attempt
@@ -154,6 +157,7 @@ class BleScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
                 if not client.is_connected:
                     _LOGGER.warning(f"[{self.name}] Failed to connect.")
                     raise UpdateFailed(f"Failed to connect to {self._device_address}")
+                _LOGGER.info(f"[{self.name}] Successfully connected to {ble_device.address}. Preparing to fetch data.") # Added log
 
                 _LOGGER.debug(f"[{self.name}] Connected. Fetching data...")
                 # Call the device-specific fetch logic
@@ -172,11 +176,13 @@ class BleScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
         except (BleakError, TimeoutError) as err:
             # Log specific connection/communication errors as warnings and retry
             _LOGGER.warning(f"[{self.name}] Connection/communication error: {err}. Will retry.")
+            _LOGGER.error(f"[{self.name}] Caught BleakError/TimeoutError during update: {err}", exc_info=True) # Added log
             # Return previous data if available, otherwise None to indicate no update
             return self.data if self.data else None
         except Exception as err:
             # Log other unexpected errors and fail the update
             _LOGGER.exception(f"[{self.name}] Unexpected error during update: {err}")
+            _LOGGER.critical(f"[{self.name}] Caught UNEXPECTED Exception during update: {err}", exc_info=True) # Added log
             raise UpdateFailed(f"Unexpected error: {err}") from err
         # No finally block needed here, 'async with client' handles disconnection
 

@@ -8,7 +8,7 @@ from custom_components.ble_sensor.devices.device_types import get_device_type
 from custom_components.ble_sensor.utils.const import KEY_PF_MODE
 from homeassistant.components.select import SelectEntity
 
-from custom_components.ble_sensor.entities.entity import BLESensorEntity
+from custom_components.ble_sensor.entity import BLESensorEntity
 
 _LOGGER = logging.getLogger(__name__)
 

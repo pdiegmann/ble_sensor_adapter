@@ -7,7 +7,7 @@ from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, DOMAIN
 from custom_components.ble_sensor.devices.device_types import get_device_type
 from homeassistant.components.switch import SwitchEntity
 from custom_components.ble_sensor.utils.const import KEY_PF_DND_STATE, KEY_PF_POWER_STATUS
-from custom_components.ble_sensor.entities.entity import BLESensorEntity
+from custom_components.ble_sensor.entity import BLESensorEntity
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -58,8 +58,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Set up platforms (e.g., sensor) associated with this config entry
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Add listener for options updates
-    entry.async_on_unload(entry.add_update_listener(coordinator.async_options_updated))
+    # Options update listener is handled within the coordinator itself.
 
     _LOGGER.info(f"BLE Scanner entry (ID: {entry.entry_id}) setup complete.")
     return True

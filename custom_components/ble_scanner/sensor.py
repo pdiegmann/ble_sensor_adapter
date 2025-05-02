@@ -237,9 +237,18 @@ class BleSensor(CoordinatorEntity[BleScannerCoordinator], SensorEntity):
             _LOGGER.warning(f"Config entry {coordinator.config_entry.entry_id} lacks a unique_id. Using entry_id for sensor unique_id.")
 
 
-        # Link device info to the coordinator's device entry
-        # The coordinator should have already created the device entry
-        self._attr_device_info = coordinator.device_info # Use device_info from coordinator
+        # Construct device info to link this sensor entity to the device entry
+        # created by the config entry. Use the config entry's unique_id (MAC address)
+        # as the identifier within the integration's domain.
+        device_info = {
+            "identifiers": {(DOMAIN, coordinator.config_entry.unique_id)},
+        }
+        # Add device name from the handler if available
+        if coordinator._device_handler and coordinator._device_handler.name:
+             device_info["name"] = coordinator._device_handler.name
+        # TODO: Consider adding manufacturer/model from handler if available
+
+        self._attr_device_info = device_info
 
         _LOGGER.debug(f"Initialized sensor: {self.unique_id} (Coordinator: {coordinator.name})")
 

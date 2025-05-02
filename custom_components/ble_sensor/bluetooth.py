@@ -50,6 +50,7 @@ class BLEConnection:
 
     async def start(self) -> None:
         """Start the connection handler."""
+        _LOGGER.info("Starting BLE connection handler for %s", self.mac_address)
         self._stop_event.clear()
         
         # Register for new device callbacks

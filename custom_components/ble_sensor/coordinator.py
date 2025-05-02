@@ -143,15 +143,8 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
             
         try:
             # Special handling for Petkit Fountain and S-06 Soil Tester
-            if isinstance(self.device_type, PetkitFountain):
+            if isinstance(self.device_type, PetkitFountain) or isinstance(self.device_type, SoilTester):
                 # Use the custom fetch method for Petkit devices
-                data = await self.device_type.async_custom_fetch_data(self.ble_connection.client)
-                if data:
-                    self.device.update_from_data(data)
-                    self.device.available = True
-                return self.device.data or {}
-            elif isinstance(self.device_type, SoilTester):
-                # Use the custom fetch method for S-06 Soil Tester devices
                 data = await self.device_type.async_custom_fetch_data(self.ble_connection.client)
                 if data:
                     self.device.update_from_data(data)
@@ -177,30 +170,3 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
         except Exception as ex:
             _LOGGER.error("Error updating device data: %s", ex)
             raise UpdateFailed(f"Error communicating with device: {ex}") from ex
-
-    # async def _async_update_data(self) -> Dict[str, Any]:
-    #     """Update data via polling if needed."""
-    #     # Skip polling if device is not available or doesn't need polling
-    #     if not self._available or not self.device_type.requires_polling():
-    #         return self.device.data or {}
-            
-    #     try:
-    #         # For devices that need polling, read characteristics
-    #         for uuid in self.device_type.get_characteristics():
-    #             try:
-    #                 data = await self.ble_connection.read_characteristic(uuid)
-    #                 if data:
-    #                     self._handle_device_data({
-    #                         "characteristic": uuid,
-    #                         "data": data.hex(),
-    #                         "raw_data": data,
-    #                     })
-    #             except Exception as ex:  # pylint: disable=broad-except
-    #                 _LOGGER.error(
-    #                     "Failed to read characteristic %s: %s", uuid, ex
-    #                 )
-                    
-    #         return self.device.data or {}
-    #     except Exception as ex:  # pylint: disable=broad-except
-    #         _LOGGER.error("Error updating device data: %s", ex)
-    #         raise UpdateFailed(f"Error communicating with device: {ex}") from ex

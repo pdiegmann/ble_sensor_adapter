@@ -1,11 +1,17 @@
 """Base entity for BLE Sensor integration."""
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo, Entity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.components.binary_sensor import (
+    BinarySensorEntityDescription
+)
+from homeassistant.components.sensor import (
+    SensorEntityDescription
+)
 
 from custom_components.ble_sensor.const import DOMAIN, SIGNAL_DEVICE_UPDATE
 from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
@@ -16,37 +22,40 @@ class BLESensorEntity(CoordinatorEntity[BLESensorDataUpdateCoordinator], Entity)
     def __init__(
         self, 
         coordinator: BLESensorDataUpdateCoordinator, 
-        description: Dict[str, Any],
+        description: Union[SensorEntityDescription, BinarySensorEntityDescription],
     ) -> None:
         """Initialize the entity."""
         super().__init__(coordinator)
         
         self.entity_description = description
-        self._key = description["key"]
-        self._attr_name = description["name"]
-        self._attr_unique_id = f"{coordinator.device.unique_id}_{self._key}"
-        
+        self._key = description.key
+        self._attr_unique_id = f"{coordinator.device.unique_id}_{description.key}"
+        self._attr_name = description.name
+
         # Set device info
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.mac_address)},
             name=coordinator.device.name,
             manufacturer=coordinator.device.manufacturer,
             model=coordinator.device.model,
-            via_device=(DOMAIN, "bluetooth"),
+            # Remove via_device reference that was causing warnings
         )
         
         # Optional attributes
-        if "device_class" in description:
-            self._attr_device_class = description["device_class"]
+        if hasattr(description, "device_class"):
+            self._attr_device_class = description.device_class
             
-        if "state_class" in description:
-            self._attr_state_class = description["state_class"]
+        if hasattr(description, "state_class"):
+            self._attr_state_class = description.state_class
             
-        if "native_unit_of_measurement" in description:
-            self._attr_native_unit_of_measurement = description["native_unit_of_measurement"]
+        if hasattr(description, "native_unit_of_measurement"):
+            self._attr_native_unit_of_measurement = description.native_unit_of_measurement
             
-        if "entity_category" in description:
-            self._attr_entity_category = description["entity_category"]
+        if hasattr(description, "entity_category"):
+            self._attr_entity_category = description.entity_category
+            
+        if hasattr(description, "icon"):
+            self._attr_icon = description.icon
             
         self._attr_has_entity_name = True
         self._attr_should_poll = False
@@ -63,6 +72,10 @@ class BLESensorEntity(CoordinatorEntity[BLESensorDataUpdateCoordinator], Entity)
                 self._handle_update,
             )
         )
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return self._attr_device_info
 
     @property
     def available(self) -> bool:

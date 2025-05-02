@@ -8,11 +8,15 @@ from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.components.binary_sensor import (
+    BinarySensorEntityDescription
+)
 
 from custom_components.ble_sensor.const import CONF_DEVICE_TYPE, DOMAIN
 from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
 from custom_components.ble_sensor.device_types import get_device_type
 from custom_components.ble_sensor.entity import BLESensorEntity
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,14 +27,14 @@ async def async_setup_entry(
 ) -> None:
     """Set up the binary sensor platform."""
     coordinator: BLESensorDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
-    
     # Get device type
     device_type = get_device_type(entry.data[CONF_DEVICE_TYPE])
     
     # Create entities
     entities = []
     for description in device_type.get_binary_sensor_descriptions():
-        entities.append(BLESensorBinarySensorEntity(coordinator, description))
+        entity = BLESensorBinarySensorEntity(coordinator, description)
+        entities.append(entity)
             
     if entities:
         async_add_entities(entities)
@@ -41,7 +45,7 @@ class BLESensorBinarySensorEntity(BLESensorEntity, BinarySensorEntity):
     def __init__(
         self, 
         coordinator: BLESensorDataUpdateCoordinator, 
-        description: Dict[str, Any],
+        description: BinarySensorEntityDescription,
     ) -> None:
         """Initialize the binary sensor entity."""
         super().__init__(coordinator, description)

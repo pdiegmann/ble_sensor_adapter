@@ -1,0 +1,18 @@
+{
+  "domain": "ble_sensor",
+  "name": "BLE Sensor",
+  "bluetooth": [
+    {
+      "connectable": true,
+      "local_name": "*"
+    }
+  ],
+  "codeowners": ["@pdiegmann"],
+  "config_flow": true,
+  "dependencies": ["bluetooth"],
+  "documentation": "https://github.com/pdiegmann/ble_sensor_adapter",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/pdiegmann/ble_sensor_adapter/issues",
+  "version": "0.1.0",
+  "integration_type": "device"
+}

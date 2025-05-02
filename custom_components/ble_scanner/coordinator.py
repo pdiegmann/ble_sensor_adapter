@@ -63,18 +63,44 @@ class BleScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
             _LOGGER.debug(f"self._device_type value: {self._device_type!r}")
             _LOGGER.debug(f"device_config type: {type(device_config)}, value: {device_config}")
             _LOGGER.debug(f"self._device_type type: {type(self._device_type)}, value: {self._device_type}")
-            self._device_handler: BaseDeviceHandler = get_device_handler(self._device_type)
-            # Use device name from handler if available, otherwise address
-            coordinator_name = f"{DOMAIN} {self._device_handler.name or self._device_address}"
+            handler_class = get_device_handler(self._device_type) # Get the class
+            if handler_class:
+                # Instantiate the handler class with necessary arguments
+                # TODO: This instantiation logic might need refinement if handler __init__ signatures
+                # vary significantly beyond taking 'config' or 'hass, config, logger'.
+                try:
+                    if self._device_type == DEVICE_TYPE_PETKIT_FOUNTAIN:
+                        # Specific instantiation for Petkit (assuming its signature)
+                        self._device_handler: BaseDeviceHandler = handler_class(self.hass, device_config, _LOGGER)
+                    else:
+                        # Generic instantiation assuming BaseDeviceHandler signature (config only)
+                        # This might fail if other handlers *require* more args.
+                        self._device_handler: BaseDeviceHandler = handler_class(device_config)
+
+                    # Use device name from handler instance if available, otherwise address
+                    coordinator_name = f"{DOMAIN} {self._device_handler.name or self._device_address}"
+                    _LOGGER.debug(f"Successfully instantiated handler: {type(self._device_handler).__name__}")
+
+                except Exception as init_err:
+                    _LOGGER.error(f"Failed to instantiate handler {handler_class.__name__} for {self._device_type} ({self._device_address}): {init_err}", exc_info=True)
+                    self._device_handler = None # Indicate handler is missing due to init error
+                    coordinator_name = f"{DOMAIN} {self._device_address} (Handler Init Error)"
+
+            else:
+                # Handler class not found by get_device_handler
+                _LOGGER.error(f"Device handler class not found for type {self._device_type} ({self._device_address})")
+                self._device_handler = None # Indicate handler is missing
+                coordinator_name = f"{DOMAIN} {self._device_address} (Handler Class Not Found)"
+
         except ImportError:
              _LOGGER.error(f"Device handler module not found for type {self._device_type} ({self._device_address})", exc_info=True)
              self._device_handler = None # Indicate handler is missing
              coordinator_name = f"{DOMAIN} {self._device_address} (Handler Module Error)"
         except Exception as e:
-            # Handle case where handler cannot be instantiated (e.g., unknown type in get_device_handler)
-            _LOGGER.error(f"Error getting device handler for {self._device_type} ({self._device_address}): {e}", exc_info=True)
+            # Catch other potential errors during the process
+            _LOGGER.error(f"Unexpected error setting up device handler for {self._device_type} ({self._device_address}): {e}", exc_info=True)
             self._device_handler = None # Indicate handler is missing
-            coordinator_name = f"{DOMAIN} {self._device_address} (Handler Init Error)"
+            coordinator_name = f"{DOMAIN} {self._device_address} (Handler Setup Error)"
 
 
         super().__init__(

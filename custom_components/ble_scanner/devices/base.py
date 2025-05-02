@@ -1,6 +1,6 @@
 """Base class for device-specific BLE connection handlers."""
 import logging
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod # noqa: F401
 from typing import Any, Dict
 
 from bleak import BleakClient
@@ -13,7 +13,6 @@ from homeassistant.const import CONF_ADDRESS, CONF_NAME
 # Removed ATTR_LAST_UPDATED, ATTR_RSSI as coordinator handles metadata
 # from custom_components.ble_scanner.const import ATTR_LAST_UPDATED, ATTR_RSSI
 
-_LOGGER = logging.getLogger(__name__) # Use standard logger name
 
 class BaseDeviceHandler(ABC):
     """
@@ -24,14 +23,15 @@ class BaseDeviceHandler(ABC):
     for interacting with the device to fetch data.
     """
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
         """Initialize the base handler."""
         # Store config needed for identification or interaction logic
         self.config = config
         self._address = config.get(CONF_ADDRESS, "").lower()
         self._name = config.get(CONF_NAME, "")
         # Use address as the primary identifier if available
-        self._device_id = self._address if self._address else self._name.lower()
+        self._device_id = self._address if self._address else self._name.lower() if self._name else "unknown_device"
+        self.logger = logger # Store logger instance
 
     @property
     def device_id(self) -> str:

@@ -66,17 +66,9 @@ class BleScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
             _LOGGER.debug(f"self._device_type type: {type(self._device_type)}, value: {self._device_type}")
             handler_class = get_device_handler(self._device_type) # Get the class
             if handler_class:
-                # Instantiate the handler class with necessary arguments
-                # TODO: This instantiation logic might need refinement if handler __init__ signatures
-                # vary significantly beyond taking 'config' or 'hass, config, logger'.
                 try:
-                    if self._device_type == DEVICE_TYPE_PETKIT_FOUNTAIN:
-                        # Specific instantiation for Petkit (assuming its signature)
-                        self._device_handler: BaseDeviceHandler = handler_class(self.hass, device_config, _LOGGER)
-                    else:
-                        # Generic instantiation assuming BaseDeviceHandler signature (config only)
-                        # This might fail if other handlers *require* more args.
-                        self._device_handler: BaseDeviceHandler = handler_class(device_config)
+                    # Instantiate the handler class - assuming all handlers now take (config, logger)
+                    self._device_handler: BaseDeviceHandler = handler_class(device_config, _LOGGER)
 
                     # Use device name from handler instance if available, otherwise address
                     coordinator_name = f"{DOMAIN} {self._device_handler.name or self._device_address}"

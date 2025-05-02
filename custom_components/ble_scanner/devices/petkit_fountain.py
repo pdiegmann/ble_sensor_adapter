@@ -1,17 +1,17 @@
 """Active connection handler for Petkit Fountain devices."""
 import asyncio
 import logging
-from datetime import datetime
-from typing import Any, Dict, Optional, Callable
+from datetime import datetime # Keep for _time_in_bytes
+from typing import Any, Dict, Optional # Keep Callable for notification callback type hint if needed
 
 from bleak import BleakClient
 from bleak.backends.characteristic import BleakGATTCharacteristic
-from bleak.backends.device import BLEDevice
+# from bleak.backends.device import BLEDevice # No longer needed here
 from bleak.exc import BleakError
 
 from custom_components.ble_scanner.devices.base import BaseDeviceHandler
 from custom_components.ble_scanner.const import (
-    LOGGER_NAME,
+    # LOGGER_NAME, # Logger passed in __init__
     KEY_PF_MODEL_CODE,
     KEY_PF_MODEL_NAME,
     KEY_PF_ALIAS,
@@ -62,14 +62,16 @@ RESPONSE_TIMEOUT = 10 # seconds
 class PetkitFountainHandler(BaseDeviceHandler):
     """Handles connection and data parsing for Petkit Fountains."""
 
-    def __init__(self, hass, config, logger):
-        super().__init__(config) # Pass only config to base class
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger):
+        """Initialize the Petkit Fountain handler."""
+        super().__init__(config, logger) # Pass config and logger to base
         self._sequence = 0
         self._device_id_bytes: Optional[bytes] = None
         self._secret: Optional[bytes] = None
-        self._notification_queue = asyncio.Queue()
-        self._expected_responses: Dict[int, asyncio.Future] = {}
+        self._notification_queue = asyncio.Queue() # Queue for notifications within a fetch cycle
+        self._expected_responses: Dict[int, asyncio.Future] = {} # Futures for expected responses
         self._is_initialized = False # Track if initial command sequence is done
+        self._latest_data: Dict[str, Any] = {} # Store latest parsed data
 
     def _increment_sequence(self):
         """Increment and wrap the command sequence number."""
@@ -134,6 +136,7 @@ class PetkitFountainHandler(BaseDeviceHandler):
             return
 
         # Handle unsolicited updates or parse specific responses if needed outside command context
+        # (This might be less relevant in a polling model unless device sends spontaneously)
         if cmd == RESP_DEVICE_STATE:
             self._parse_device_state(payload)
         elif cmd == RESP_DEVICE_CONFIG:
@@ -245,29 +248,29 @@ class PetkitFountainHandler(BaseDeviceHandler):
     # --- Notification Handling --- #
     def _notification_callback(self, sender: BleakGATTCharacteristic, data: bytearray):
         """Handle incoming data notifications."""
+        # This callback puts data into the queue for processing within async_fetch_data
         self.logger.debug(f"Received notification from {sender.uuid}: {bytes(data).hex()}")
         self._notification_queue.put_nowait(bytes(data))
 
-    async def _process_notifications(self):
-        """Continuously process notifications from the queue."""
-        while self.is_connected:
+    async def _process_notifications_inline(self):
+        """Process notifications received during the fetch cycle."""
+        # This is called within async_fetch_data to handle responses
+        # triggered by commands sent during that fetch.
+        while not self._notification_queue.empty():
             try:
-                data = await self._notification_queue.get()
+                data = self._notification_queue.get_nowait()
                 self._parse_response(data)
                 self._notification_queue.task_done()
-            except asyncio.CancelledError:
-                self.logger.debug("Notification processing task cancelled.")
-                break
+            except asyncio.QueueEmpty:
+                break # No more notifications for now
             except Exception as e:
-                self.logger.error(f"Error processing notification: {e}", exc_info=True)
+                self.logger.error(f"Error processing notification inline: {e}", exc_info=True)
+
 
     # --- Command Sending Logic --- #
-    async def _send_command_and_wait(self, cmd: int, type_val: int, data: list[int], response_cmd: int) -> Optional[bytes]:
-        """Sends a command and waits for a specific response command."""
-        if not self.is_connected or not self._client:
-            self.logger.error("Cannot send command: Not connected")
-            return None
-
+    async def _send_command_and_wait(self, client: BleakClient, cmd: int, type_val: int, data: list[int], response_cmd: int) -> Optional[bytes]:
+        """Sends a command using the provided client and waits for a specific response command."""
+        # Removed connection check, assumes client is connected by coordinator
         seq = self._sequence
         command_bytes = self._build_command(seq, cmd, type_val, data)
         future = asyncio.Future()
@@ -275,35 +278,37 @@ class PetkitFountainHandler(BaseDeviceHandler):
 
         try:
             self.logger.debug(f"Sending command: Seq={seq}, Cmd={cmd}, Type={type_val}, Data={data}")
-            await self._client.write_gatt_char(PETKIT_WRITE_UUID, command_bytes, response=False)
+            await client.write_gatt_char(PETKIT_WRITE_UUID, command_bytes, response=False)
             self._increment_sequence()
 
-            # Wait for the response
+            # Wait for the response (processed by _notification_callback -> _parse_response)
             payload = await asyncio.wait_for(future, timeout=RESPONSE_TIMEOUT)
             self.logger.debug(f"Received expected response for Cmd={response_cmd}: {payload.hex()}")
             return payload
         except asyncio.TimeoutError:
             self.logger.error(f"Timeout waiting for response to command {cmd} (Expected: {response_cmd})")
-            return None
+            # Let the exception propagate to async_fetch_data
+            raise
         except BleakError as e:
             self.logger.error(f"BleakError sending command {cmd}: {e}")
-            await self.disconnect() # Disconnect if write fails
-            return None
+            # Let the exception propagate to async_fetch_data
+            raise
         except Exception as e:
             self.logger.error(f"Unexpected error sending command {cmd}: {e}", exc_info=True)
-            return None
+            # Let the exception propagate to async_fetch_data
+            raise
         finally:
             # Clean up future
             if response_cmd in self._expected_responses:
                 del self._expected_responses[response_cmd]
 
     # --- Initialization Sequence --- #
-    async def _initialize_device(self):
+    async def _initialize_device(self, client: BleakClient):
         """Perform the initial command sequence required by Petkit devices."""
         self.logger.info(f"Starting initialization sequence for {self.device_id}")
 
         # 1. Get Device Details (to get device_id/serial)
-        details_payload = await self._send_command_and_wait(CMD_GET_DEVICE_DETAILS, 1, [0, 0], RESP_DEVICE_DETAILS)
+        details_payload = await self._send_command_and_wait(client, CMD_GET_DEVICE_DETAILS, 1, [0, 0], RESP_DEVICE_DETAILS)
         if not details_payload:
             self.logger.error("Failed to get device details during initialization.")
             return False
@@ -313,113 +318,142 @@ class PetkitFountainHandler(BaseDeviceHandler):
              return False
 
         # 2. Init Device (Send secret derived from device_id)
-        # Adapted from PetkitW5BLEMQTT/commands.py init_device
-        # Secret generation might need refinement based on Utils.py logic
-        # Simple reverse and pad for now, might be incorrect
         reversed_id = bytes(reversed(self._device_id_bytes))
-        # Pad to 8 bytes
         padded_secret = reversed_id + bytes(max(0, 8 - len(reversed_id)))
         self._secret = padded_secret # Store the secret
         self.logger.debug(f"Generated Secret: {self._secret.hex()}")
 
         padded_device_id = self._device_id_bytes + bytes(max(0, 8 - len(self._device_id_bytes)))
         init_data = [0, 0] + list(padded_device_id) + list(self._secret)
-        init_payload = await self._send_command_and_wait(CMD_INIT_DEVICE, 1, init_data, RESP_INIT_DEVICE)
+        init_payload = await self._send_command_and_wait(client, CMD_INIT_DEVICE, 1, init_data, RESP_INIT_DEVICE)
         if init_payload is None: # Check for None explicitly, empty payload might be valid
-            self.logger.error("Failed to send init command or receive response.")
+            self.logger.warning("Failed to send init command or receive response. Continuing cautiously...")
             # Some devices might not respond to init, proceed cautiously
-            # return False
+            # return False # Decide if this is fatal
 
         # 3. Get Device Sync (Send secret)
         sync_data = [0, 0] + list(self._secret)
-        sync_payload = await self._send_command_and_wait(CMD_GET_DEVICE_SYNC, 1, sync_data, RESP_DEVICE_SYNC)
+        sync_payload = await self._send_command_and_wait(client, CMD_GET_DEVICE_SYNC, 1, sync_data, RESP_DEVICE_SYNC)
         if sync_payload is None:
             self.logger.warning("Failed to send sync command or receive response. Continuing...")
             # return False # Might not be critical?
 
         # 4. Set Datetime
         time_data = self._time_in_bytes()
-        # No specific response expected for set_datetime, just send
-        await self._send_command_and_wait(CMD_SET_DATETIME, 1, time_data, 999) # Use dummy response code
+        # No specific response expected for set_datetime, just send and hope
+        # Use a dummy response code that won't match anything real
+        try:
+            await self._send_command_and_wait(client, CMD_SET_DATETIME, 1, time_data, 999)
+        except asyncio.TimeoutError:
+            self.logger.debug("Timeout expected for SET_DATETIME command, continuing.")
+        except BleakError as e:
+            self.logger.warning(f"BleakError sending SET_DATETIME: {e}. Continuing...")
         # Check if successful? Assume ok for now.
 
         self.logger.info(f"Initialization sequence completed for {self.device_id}")
         self._is_initialized = True
         return True
 
-    # --- Main Update Logic --- #
-    async def update(self, ble_device: BLEDevice) -> None:
-        """Connect, initialize (if needed), subscribe, and fetch data."""
-        async with self._update_lock:
-            if not await self._ensure_connected(ble_device):
-                self.mark_unavailable()
-                return
+    # --- Main Fetch Logic (Replaces update) --- #
+    async def async_fetch_data(self, client: BleakClient) -> Dict[str, Any]:
+        """
+        Fetch data from the connected Petkit Fountain.
 
-            notification_task = None
+        Handles initialization, command sending, and notification processing
+        within a single fetch cycle using the provided connected client.
+        """
+        self.logger.debug(f"[{self.device_id}] Starting async_fetch_data")
+        # Clear previous data? Or keep stale data until updated? Let's clear specific keys on failure.
+        # self._latest_data = {} # Start fresh each time? Maybe not ideal if some fetches fail.
+
+        # Ensure notifications are stopped from previous runs (safety)
+        try:
+            await client.stop_notify(PETKIT_READ_UUID)
+        except (BleakError, KeyError): # Ignore errors if not subscribed or char missing
+             pass
+        # Clear the queue from potential leftovers
+        while not self._notification_queue.empty():
+            self._notification_queue.get_nowait()
+            self._notification_queue.task_done()
+        self._expected_responses.clear() # Clear any stale futures
+
+        try:
+            # Start notifications for this fetch cycle
+            await client.start_notify(PETKIT_READ_UUID, self._notification_callback)
+            self.logger.debug(f"[{self.device_id}] Started notification listener.")
+
+            # Perform initialization sequence if not done yet
+            if not self._is_initialized:
+                if not await self._initialize_device(client):
+                    # Initialization failed, raise error to coordinator
+                    raise BleakError("Device initialization failed.")
+
+            # Fetch current state after initialization/connection
+            self.logger.debug(f"[{self.device_id}] Requesting device state, config, and battery...")
+
+            # Use asyncio.gather to run fetches concurrently? Petkit might not like that.
+            # Send commands sequentially with delays.
+
+            state_payload = await self._send_command_and_wait(client, CMD_GET_DEVICE_STATE, 1, [0, 0], RESP_DEVICE_STATE)
+            if state_payload:
+                self._parse_device_state(state_payload)
+            else:
+                self.logger.warning(f"[{self.device_id}] Failed to get device state.")
+                # Clear relevant keys if fetch failed?
+                self._latest_data.pop(KEY_PF_POWER_STATUS, None)
+                self._latest_data.pop(KEY_PF_MODE, None)
+                # ... clear other state keys
+
+            await asyncio.sleep(0.5) # Small delay between commands
+
+            config_payload = await self._send_command_and_wait(client, CMD_GET_DEVICE_CONFIG, 1, [0, 0], RESP_DEVICE_CONFIG)
+            if config_payload:
+                self._parse_device_config(config_payload)
+            else:
+                self.logger.warning(f"[{self.device_id}] Failed to get device config.")
+                self._latest_data.pop(KEY_PF_DND_STATE, None)
+
+
+            await asyncio.sleep(0.5)
+
+            battery_payload = await self._send_command_and_wait(client, CMD_GET_BATTERY, 1, [0, 0], RESP_BATTERY)
+            if battery_payload:
+                self._parse_battery(battery_payload)
+            else:
+                self.logger.warning(f"[{self.device_id}] Failed to get battery level.")
+                self._latest_data.pop(KEY_PF_BATTERY, None)
+
+
+            # Add other fetches if needed (CMD_GET_DEVICE_INFO, CMD_GET_DEVICE_TYPE)
+
+            # Process any remaining notifications that might have arrived
+            await self._process_notifications_inline()
+
+            self.logger.info(f"[{self.device_id}] Data fetch successful. Latest data: {self._latest_data}")
+            return self._latest_data.copy() # Return a copy
+
+        except (BleakError, asyncio.TimeoutError) as e:
+            self.logger.error(f"[{self.device_id}] Communication error during data fetch: {e}")
+            # Mark device unavailable implicitly by raising UpdateFailed in coordinator
+            # Clear data? Maybe not, keep last known state?
+            # Let the coordinator handle the UpdateFailed exception.
+            raise # Re-raise the exception
+        except Exception as e:
+            self.logger.error(f"[{self.device_id}] Unexpected error during data fetch: {e}", exc_info=True)
+            raise # Re-raise the exception
+        finally:
+            # Stop notifications after fetch cycle
             try:
-                # Start notification processing task
-                await self._client.start_notify(PETKIT_READ_UUID, self._notification_callback)
-                notification_task = asyncio.create_task(self._process_notifications())
-                self.logger.debug("Started notification listener.")
-
-                # Perform initialization sequence if not done yet
-                if not self._is_initialized:
-                    if not await self._initialize_device():
-                        raise BleakError("Device initialization failed.")
-
-                # Fetch current state after initialization/connection
-                self.logger.debug("Requesting device state and config...")
-                state_payload = await self._send_command_and_wait(CMD_GET_DEVICE_STATE, 1, [0, 0], RESP_DEVICE_STATE)
-                if state_payload:
-                    self._parse_device_state(state_payload)
-
-                await asyncio.sleep(0.5) # Small delay between commands
-
-                config_payload = await self._send_command_and_wait(CMD_GET_DEVICE_CONFIG, 1, [0, 0], RESP_DEVICE_CONFIG)
-                if config_payload:
-                    self._parse_device_config(config_payload)
-
-                await asyncio.sleep(0.5)
-
-                battery_payload = await self._send_command_and_wait(CMD_GET_BATTERY, 1, [0, 0], RESP_BATTERY)
-                if battery_payload:
-                    self._parse_battery(battery_payload)
-
-                # Add other fetches if needed (CMD_GET_DEVICE_INFO, CMD_GET_DEVICE_TYPE)
-
-                self._last_update_time = datetime.now()
-                self._is_available = True
-                self.logger.info(f"Update successful for {self.device_id}. Latest data: {self._latest_data}")
-
-                # Keep connection open? Or disconnect after update?
-                # For polling coordinator, disconnect is better to allow other devices.
-                # If using a push-based approach, keep connected.
-                # Current coordinator is polling, so disconnect.
-                # Let the coordinator handle disconnect? No, handler should manage its state.
-                # Keep connected for a short while to allow notifications? No, polling implies discrete updates.
-
+                if client.is_connected: # Check connection before trying to stop
+                    await client.stop_notify(PETKIT_READ_UUID)
+                    self.logger.debug(f"[{self.device_id}] Stopped notification listener.")
             except BleakError as e:
-                self.logger.error(f"BleakError during update for {self.device_id}: {e}")
-                self.mark_unavailable()
-                await self.disconnect() # Ensure disconnect on error
-                raise
+                # Ignore errors stopping notifications if already disconnected etc.
+                self.logger.warning(f"[{self.device_id}] BleakError stopping notifications: {e}")
             except Exception as e:
-                self.logger.error(f"Unexpected error during update for {self.device_id}: {e}", exc_info=True)
-                self.mark_unavailable()
-                await self.disconnect() # Ensure disconnect on error
-                raise
-            finally:
-                # Stop notifications and processing task before potential disconnect
-                if self.is_connected and self._client:
-                    try:
-                        await self._client.stop_notify(PETKIT_READ_UUID)
-                        self.logger.debug("Stopped notification listener.")
-                    except BleakError as e:
-                        self.logger.warning(f"BleakError stopping notifications: {e}")
-                if notification_task and not notification_task.done():
-                    notification_task.cancel()
-                    await asyncio.sleep(0) # Allow cancellation to propagate
-
-                # Disconnect after update cycle (for polling coordinator)
-                await self.disconnect()
-
+                 self.logger.warning(f"[{self.device_id}] Error stopping notifications: {e}")
+            # Clear queue and futures again just in case
+            while not self._notification_queue.empty():
+                self._notification_queue.get_nowait()
+                self._notification_queue.task_done()
+            self._expected_responses.clear()

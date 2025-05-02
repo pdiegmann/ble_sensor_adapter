@@ -194,7 +194,7 @@ class BLESensorOptionsFlow(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self._config_entry = config_entry  # Store as instance variable, don't override self.config_entry
 
     async def async_step_init(
         self, user_input: Optional[Dict[str, Any]] = None
@@ -205,10 +205,10 @@ class BLESensorOptionsFlow(config_entries.OptionsFlow):
             
         # Fill with current values
         options = {
-            CONF_POLL_INTERVAL: self.config_entry.options.get(
+            CONF_POLL_INTERVAL: self._config_entry.options.get(
                 CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL
             ),
-            CONF_RETRY_COUNT: self.config_entry.options.get(
+            CONF_RETRY_COUNT: self._config_entry.options.get(
                 CONF_RETRY_COUNT, DEFAULT_RETRY_COUNT
             ),
         }

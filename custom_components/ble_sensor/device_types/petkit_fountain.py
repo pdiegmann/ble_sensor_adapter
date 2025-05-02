@@ -4,7 +4,22 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type, Union
+
+from homeassistant.components.sensor import (
+    SensorEntityDescription,
+    SensorDeviceClass,
+    SensorStateClass
+)
+from homeassistant.components.binary_sensor import (
+    BinarySensorEntityDescription,
+    BinarySensorDeviceClass
+)
+from homeassistant.const import (
+    PERCENTAGE,
+    UnitOfTime,
+    EntityCategory
+)
 
 from bleak import BleakClient
 from bleak.exc import BleakError
@@ -101,85 +116,98 @@ class PetkitFountain(DeviceType):
         """Return the data class for this device type."""
         return PetkitFountainData
 
-    def get_entity_descriptions(self) -> List[Dict[str, Any]]:
-        """Return entity descriptions for this device type."""
+    def get_sensor_descriptions(self) -> List[SensorEntityDescription]:
+        """Return sensor entity descriptions for this device type."""
         return [
-            {
-                "key": KEY_PF_BATTERY,
-                "name": "Battery",
-                "device_class": "battery",
-                "state_class": "measurement",
-                "native_unit_of_measurement": "%",
-                "entity_category": "diagnostic",
-                "entity_type": "sensor",
-            },
-            {
-                "key": KEY_PF_POWER_STATUS,
-                "name": "Power Status",
-                "icon": "mdi:power",
-                "entity_category": None,
-                "entity_type": "sensor",
-            },
-            {
-                "key": KEY_PF_MODE,
-                "name": "Mode",
-                "icon": "mdi:fountain",
-                "entity_category": None,
-                "entity_type": "sensor",
-            },
-            {
-                "key": KEY_PF_DND_STATE,
-                "name": "Do Not Disturb",
-                "icon": "mdi:do-not-disturb",
-                "entity_category": "config",
-                "entity_type": "sensor",
-            },
-            {
-                "key": KEY_PF_FILTER_PERCENT,
-                "name": "Filter Life",
-                "device_class": None,
-                "state_class": "measurement",
-                "native_unit_of_measurement": "%",
-                "entity_category": "diagnostic",
-                "entity_type": "sensor",
-            },
-            {
-                "key": KEY_PF_PUMP_RUNTIME,
-                "name": "Pump Runtime",
-                "device_class": "duration",
-                "state_class": "total_increasing",
-                "native_unit_of_measurement": "s",
-                "entity_category": "diagnostic",
-                "entity_type": "sensor",
-            },
-            {
-                "key": KEY_PF_RUNNING_STATUS,
-                "name": "Status",
-                "icon": "mdi:water-pump",
-                "entity_category": None,
-                "entity_type": "sensor",
-            },
-            {
-                "key": KEY_PF_WARN_WATER,
-                "name": "Water Warning",
-                "device_class": "problem",
-                "entity_category": "diagnostic",
-                "entity_type": "binary_sensor",
-            },
-            {
-                "key": KEY_PF_WARN_FILTER,
-                "name": "Filter Warning",
-                "device_class": "problem",
-                "entity_category": "diagnostic",
-                "entity_type": "binary_sensor",
-            },
-            {
-                "key": KEY_PF_WARN_BREAKDOWN,
-                "name": "Breakdown Warning",
-                "device_class": "problem",
-                "entity_category": "diagnostic",
-                "entity_type": "binary_sensor",
-            },
+            SensorEntityDescription(
+                key=KEY_PF_BATTERY,
+                name="Battery",
+                device_class=SensorDeviceClass.BATTERY,
+                state_class=SensorStateClass.MEASUREMENT,
+                native_unit_of_measurement=PERCENTAGE,
+                entity_category=EntityCategory.DIAGNOSTIC,
+                icon=None,
+            ),
+            SensorEntityDescription(
+                key=KEY_PF_POWER_STATUS,
+                name="Power Status",
+                device_class=None,
+                state_class=None,
+                native_unit_of_measurement=None,
+                entity_category=None,
+                icon="mdi:power",
+            ),
+            SensorEntityDescription(
+                key=KEY_PF_MODE,
+                name="Mode",
+                device_class=None,
+                state_class=None,
+                native_unit_of_measurement=None,
+                entity_category=None,
+                icon="mdi:fountain",
+            ),
+            SensorEntityDescription(
+                key=KEY_PF_DND_STATE,
+                name="Do Not Disturb",
+                device_class=None,
+                state_class=None,
+                native_unit_of_measurement=None,
+                entity_category=EntityCategory.CONFIG,
+                icon="mdi:do-not-disturb",
+            ),
+            SensorEntityDescription(
+                key=KEY_PF_FILTER_PERCENT,
+                name="Filter Life",
+                device_class=None,
+                state_class=SensorStateClass.MEASUREMENT,
+                native_unit_of_measurement=PERCENTAGE,
+                entity_category=EntityCategory.DIAGNOSTIC,
+                icon=None,
+            ),
+            SensorEntityDescription(
+                key=KEY_PF_PUMP_RUNTIME,
+                name="Pump Runtime",
+                device_class=SensorDeviceClass.DURATION,
+                state_class=SensorStateClass.TOTAL_INCREASING,
+                native_unit_of_measurement=UnitOfTime.SECONDS,
+                entity_category=EntityCategory.DIAGNOSTIC,
+                icon=None,
+            ),
+            SensorEntityDescription(
+                key=KEY_PF_RUNNING_STATUS,
+                name="Status",
+                device_class=None,
+                state_class=None,
+                native_unit_of_measurement=None,
+                entity_category=None,
+                icon="mdi:water-pump",
+            ),
+        ]
+
+    def get_binary_sensor_descriptions(self) -> List[BinarySensorEntityDescription]:
+        """Return binary sensor entity descriptions for this device type."""
+        return [
+            BinarySensorEntityDescription(
+                key=KEY_PF_WARN_WATER,
+                name="Water Warning",
+                device_class=BinarySensorDeviceClass.PROBLEM,
+                entity_category=EntityCategory.DIAGNOSTIC,
+                icon=None,
+            ),
+            BinarySensorEntityDescription(
+                key=KEY_PF_WARN_FILTER,
+                name="Filter Warning",
+                device_class=BinarySensorDeviceClass.PROBLEM,
+                entity_category=EntityCategory.DIAGNOSTIC,
+                icon=None,
+            ),
+            BinarySensorEntityDescription(
+                key=KEY_PF_WARN_BREAKDOWN,
+                name="Breakdown Warning",
+                device_class=BinarySensorDeviceClass.PROBLEM,
+                entity_category=EntityCategory.DIAGNOSTIC,
+                icon=None,
+            ),
         ]
 
     def get_characteristics(self) -> List[str]:

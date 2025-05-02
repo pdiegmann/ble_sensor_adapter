@@ -2,10 +2,23 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type, Union
 
 from bleak import BleakClient
 from bleak.exc import BleakError
+
+from homeassistant.components.binary_sensor import BinarySensorEntityDescription, BinarySensorDeviceClass
+from homeassistant.const import (
+    UnitOfTemperature,
+    PERCENTAGE,
+    UnitOfPressure,
+    EntityCategory
+)
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntityDescription,
+    SensorStateClass
+)
 
 from custom_components.ble_sensor.device import BLEDevice, DeviceData
 from custom_components.ble_sensor.const import (
@@ -58,46 +71,45 @@ class SoilTester(DeviceType):
     def get_device_data_class(self) -> Type[DeviceData]:
         """Return the data class for this device type."""
         return SoilTesterData
+    
+    def get_binary_sensor_descriptions(self) -> List[BinarySensorEntityDescription]:
+        return []
 
-    def get_entity_descriptions(self) -> List[Dict[str, Any]]:
+    def get_sensor_descriptions(self) -> List[SensorEntityDescription]:
         """Return entity descriptions for this device type."""
         return [
-            {
-                "key": KEY_S06_TEMP,
-                "name": "Temperature",
-                "device_class": "temperature",
-                "state_class": "measurement",
-                "native_unit_of_measurement": "°C",
-                "entity_category": None,
-                "entity_type": "sensor",
-            },
-            {
-                "key": KEY_S06_RH,
-                "name": "Humidity",
-                "device_class": "humidity",
-                "state_class": "measurement",
-                "native_unit_of_measurement": "%",
-                "entity_category": None,
-                "entity_type": "sensor",
-            },
-            {
-                "key": KEY_S06_PRESSURE,
-                "name": "Pressure",
-                "device_class": "pressure",
-                "state_class": "measurement",
-                "native_unit_of_measurement": "hPa",
-                "entity_category": None,
-                "entity_type": "sensor",
-            },
-            {
-                "key": KEY_S06_BATTERY,
-                "name": "Battery",
-                "device_class": "battery",
-                "state_class": "measurement",
-                "native_unit_of_measurement": "%",
-                "entity_category": "diagnostic",
-                "entity_type": "sensor",
-            },
+            SensorEntityDescription(
+                key=KEY_S06_TEMP,
+                name="Temperature",
+                device_class=SensorDeviceClass.TEMPERATURE,
+                state_class=SensorStateClass.MEASUREMENT,
+                native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+                entity_category=None,
+            ),
+            SensorEntityDescription(
+                key=KEY_S06_RH,
+                name="Humidity",
+                device_class=SensorDeviceClass.HUMIDITY,
+                state_class=SensorStateClass.MEASUREMENT,
+                native_unit_of_measurement=PERCENTAGE,
+                entity_category=None,
+            ),
+            SensorEntityDescription(
+                key=KEY_S06_PRESSURE,
+                name="Pressure",
+                device_class=SensorDeviceClass.PRESSURE,
+                state_class=SensorStateClass.MEASUREMENT,
+                native_unit_of_measurement=UnitOfPressure.HPA,
+                entity_category=None,
+            ),
+            SensorEntityDescription(
+                key=KEY_S06_BATTERY,
+                name="Battery",
+                device_class=SensorDeviceClass.BATTERY,
+                state_class=SensorStateClass.MEASUREMENT,
+                native_unit_of_measurement=PERCENTAGE,
+                entity_category=EntityCategory.DIAGNOSTIC,
+            ),
         ]
 
     def get_characteristics(self) -> List[str]:

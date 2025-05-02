@@ -12,11 +12,11 @@
     },
     {
       "connectable": true,
-      "manufacturer_id": "Petkit_*"
+      "manufacturer_id": "Petkit*"
     },
     {
       "connectable": true,
-      "manufacturer_id": "petkit_*"
+      "manufacturer_id": "petkit*"
     }
   ],
   "codeowners": ["@pdiegmann"],

@@ -3,7 +3,14 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type, Union
+
+from homeassistant.components.sensor import (
+    SensorEntityDescription
+)
+from homeassistant.components.binary_sensor import (
+    BinarySensorEntityDescription
+)
 
 from custom_components.ble_sensor.device import BLEDevice, DeviceData
 
@@ -52,9 +59,16 @@ class DeviceType(ABC):
         """Return the device data class for this device type."""
         pass
 
+    def get_entity_descriptions(self) -> List[Union[SensorEntityDescription, BinarySensorEntityDescription]]:
+        """Return all entity descriptions for this device type."""
+        return self.get_sensor_descriptions() + self.get_binary_sensor_descriptions()
+
     @abstractmethod
-    def get_entity_descriptions(self) -> List[Dict[str, Any]]:
-        """Return entity descriptions for this device type."""
+    def get_sensor_descriptions(self) -> List[SensorEntityDescription]:
+        pass
+
+    @abstractmethod
+    def get_binary_sensor_descriptions(self) -> List[BinarySensorEntityDescription]:
         pass
         
     def create_device(self, mac_address: str) -> BLEDevice:

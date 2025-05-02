@@ -29,9 +29,8 @@ async def async_setup_entry(
     
     # Create entities
     entities = []
-    for description in device_type.get_entity_descriptions():
-        if description.get("entity_type") == "binary_sensor":
-            entities.append(BLESensorBinarySensorEntity(coordinator, description))
+    for description in device_type.get_binary_sensor_descriptions():
+        entities.append(BLESensorBinarySensorEntity(coordinator, description))
             
     if entities:
         async_add_entities(entities)

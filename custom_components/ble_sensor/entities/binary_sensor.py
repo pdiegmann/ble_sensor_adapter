@@ -13,7 +13,7 @@ from homeassistant.components.binary_sensor import BinarySensorEntityDescription
 from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, DOMAIN
 from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
 from custom_components.ble_sensor.devices.device_types import get_device_type
-from custom_components.ble_sensor.entity import BLESensorEntity
+from custom_components.ble_sensor.entities.entity import BLESensorEntity
 
 
 _LOGGER = logging.getLogger(__name__)

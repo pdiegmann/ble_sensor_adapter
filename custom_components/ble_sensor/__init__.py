@@ -29,13 +29,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up BLE Sensor from a config entry."""
     try:
         # Check if Bluetooth is available
-        scanner = await async_get_scanner(hass)
-        if not scanner:
+        if not await async_scanner_count(hass):
             _LOGGER.error("No Bluetooth scanner found")
             raise ConfigEntryNotReady("No Bluetooth scanner available")
 
         # Ensure active scanning is enabled
-        if async_scanner_count(hass, BluetoothScanningMode.ACTIVE) == 0:
+        if await async_scanner_count(hass, BluetoothScanningMode.ACTIVE) == 0:
             _LOGGER.debug("Registering active Bluetooth scanner")
             entry.async_on_unload(
                 await async_register_scanner(hass, True, BluetoothScanningMode.ACTIVE)
@@ -116,4 +115,3 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload the config entry."""
     await async_unload_entry(hass, entry)
     await async_setup_entry(hass, entry)
-    

@@ -61,9 +61,6 @@ class BLEConnection:
         """Start the connection handler."""
         _LOGGER.info("Starting BLE connection handler for %s", self.mac_address)
         self._stop_event.clear()
-
-        # Get the Bluetooth scanner
-        self._scanner = await async_get_scanner(self.hass)
         
         # Register for bluetooth callbacks first
         @callback
@@ -338,4 +335,3 @@ class BLEConnection:
             
             # Schedule disconnect in the event loop
             self.hass.async_create_task(self._disconnect())
-            

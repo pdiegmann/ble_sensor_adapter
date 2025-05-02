@@ -338,3 +338,4 @@ class BLEConnection:
             
             # Schedule disconnect in the event loop
             self.hass.async_create_task(self._disconnect())
+            

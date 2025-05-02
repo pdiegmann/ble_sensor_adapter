@@ -259,3 +259,4 @@ class SoilTester(DeviceType):
                 return False
                 
         return True
+        

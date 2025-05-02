@@ -208,3 +208,4 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
             self._available = False
             _LOGGER.error("Error updating device data: %s", ex)
             raise UpdateFailed(f"Error communicating with device: {ex}") from ex
+            

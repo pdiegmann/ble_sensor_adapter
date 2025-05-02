@@ -61,3 +61,4 @@ class BLESelectEntity(BLESensorEntity, SelectEntity):
                 self.coordinator.ble_connection.client, option
             )
         await self.coordinator.async_request_refresh()
+        

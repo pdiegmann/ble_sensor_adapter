@@ -85,3 +85,4 @@ class BLESwitchEntity(BLESensorEntity, SwitchEntity):
                 self.coordinator.ble_connection.client, False
             )
         await self.coordinator.async_request_refresh()
+        

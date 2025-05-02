@@ -54,3 +54,4 @@ class BLESensorBinarySensorEntity(BLESensorEntity, BinarySensorEntity):
         if self.coordinator.data and self._key in self.coordinator.data:
             return bool(self.coordinator.data[self._key])
         return None
+    

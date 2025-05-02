@@ -696,3 +696,4 @@ class PetkitFountain(DeviceType):
         except Exception as e:
             _LOGGER.error(f"Error fetching Petkit data: {e}", exc_info=True)
             raise
+        

@@ -68,7 +68,9 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     SelectOptionDict(value=device.address, label=label)
                 )
 
-        data_schema = vol.Schema(
+        available_devices.sort(key=lambda x: x["label"])
+
+        schema = vol.Schema(
             {
                 vol.Required(CONF_DEVICE_ADDRESS): SelectSelector(
                     SelectSelectorConfig(
@@ -85,13 +87,6 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         mode=SelectSelectorMode.LIST
                     )
                 ),
-            }
-        )
-
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_DEVICE_ADDRESS): vol.In([d['value'] for d in available_devices]),
-                vol.Required(CONF_DEVICE_TYPE): vol.In([d['value'] for d in device_type_options]),
             }
         )
 
@@ -135,31 +130,6 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=schema,
             errors=errors,
-        )
-
-
-        # Sort devices by label for better UX
-        available_devices.sort(key=lambda x: x["label"])
-
-        # Show form to select the device
-        data_schema = vol.Schema(
-            {
-                vol.Required(CONF_DEVICE_ADDRESS): SelectSelector(
-                    SelectSelectorConfig(
-                        options=available_devices,
-                        mode=SelectSelectorMode.DROPDOWN,
-                        # custom_value=True # Consider adding for manual entry later
-                        # translation_key="device_select" # Consider adding for i18n
-                    )
-                ),
-            }
-        )
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=data_schema,
-            errors=errors,
-            # Not the last step if we add confirmation or options later
         )
 
     async def async_step_bluetooth(

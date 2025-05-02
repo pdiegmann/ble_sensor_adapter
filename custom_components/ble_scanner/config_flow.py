@@ -54,6 +54,12 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             entry.unique_id for entry in self._async_current_entries()
         }
 
+        device_type_options = [
+            SelectOptionDict(value=dt, label=dt.replace("-", " ").title())
+            for dt in SUPPORTED_DEVICE_TYPES
+        ]
+        _LOGGER.debug(f"Device type options: {device_type_options}")
+
         available_devices = []
         for device in discovered_devices:
             if device.address not in configured_addresses:
@@ -62,11 +68,25 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     SelectOptionDict(value=device.address, label=label)
                 )
 
-        device_type_options = [
-            SelectOptionDict(value=dt, label=dt.replace("-", " ").title())
-            for dt in SUPPORTED_DEVICE_TYPES
-        ]
-        _LOGGER.debug(f"Device type options: {device_type_options}")
+        data_schema = vol.Schema(
+            {
+                vol.Required(CONF_DEVICE_ADDRESS): SelectSelector(
+                    SelectSelectorConfig(
+                        options=available_devices,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        custom_value=True # Consider adding for manual entry later
+                        # translation_key="device_select" # Consider adding for i18n
+                    )
+                ),
+                #vol.In([d['value'] for d in device_type_options]),
+                vol.Required(CONF_DEVICE_TYPE): SelectSelector(
+                    SelectSelectorConfig(
+                        options=device_type_options,
+                        mode=SelectSelectorMode.LIST
+                    )
+                ),
+            }
+        )
 
         schema = vol.Schema(
             {

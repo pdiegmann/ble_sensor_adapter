@@ -2,7 +2,6 @@
 from typing import Dict, Type
 
 from custom_components.ble_sensor.device_types.base import DeviceType
-from custom_components.ble_sensor.device_types.device_type_1 import DeviceType1
 
 from custom_components.ble_sensor.device_types.petkit_fountain import PetkitFountain
 from custom_components.ble_sensor.device_types.soil_tester import SoilTester

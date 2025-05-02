@@ -123,12 +123,9 @@ class BleScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
             self.hass, self._device_address, connectable=True
         )
         if not ble_device:
-            _LOGGER.warning(f"[{self.name}] Device not found or not connectable.")
-            # Do not raise UpdateFailed immediately, device might become available later
-            # Return current data (or empty dict if first run) to keep sensors available but stale
-            # The coordinator base class handles availability based on success/failure
-            # Let's raise UpdateFailed to signal the issue clearly for this poll cycle
-            raise UpdateFailed(f"Device {self._device_address} not found")
+            _LOGGER.warning(f"[{self.name}] Device {self._device_address} not found or not connectable. Will retry.")
+            # Return previous data if available, otherwise None to indicate no update
+            return self.data if self.data else None
 
         # 2. Connect and Fetch Data
         client = BleakClient(ble_device)
@@ -153,13 +150,13 @@ class BleScannerCoordinator(DataUpdateCoordinator[CoordinatorData]):
                 _LOGGER.debug(f"[{self.name}] Data fetched successfully: {fetched_data}")
                 return fetched_data
 
-        except BleakError as err:
-            _LOGGER.warning(f"[{self.name}] Bluetooth error: {err}", exc_info=False) # Log BleakError as warning
-            raise UpdateFailed(f"Bluetooth error: {err}") from err
-        except TimeoutError as err:
-             _LOGGER.warning(f"[{self.name}] Timeout connecting or fetching data: {err}")
-             raise UpdateFailed(f"Timeout: {err}") from err
+        except (BleakError, TimeoutError) as err:
+            # Log specific connection/communication errors as warnings and retry
+            _LOGGER.warning(f"[{self.name}] Connection/communication error: {err}. Will retry.")
+            # Return previous data if available, otherwise None to indicate no update
+            return self.data if self.data else None
         except Exception as err:
+            # Log other unexpected errors and fail the update
             _LOGGER.exception(f"[{self.name}] Unexpected error during update: {err}")
             raise UpdateFailed(f"Unexpected error: {err}") from err
         # No finally block needed here, 'async with client' handles disconnection

@@ -70,8 +70,8 @@ class BLEScannerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_DEVICE_ADDRESS): vol.In([d.value for d in available_devices]),
-                vol.Required(CONF_DEVICE_TYPE): vol.In([d.value for d in device_type_options]),
+                vol.Required(CONF_DEVICE_ADDRESS): vol.In([d['value'] for d in available_devices]),
+                vol.Required(CONF_DEVICE_TYPE): vol.In([d['value'] for d in device_type_options]),
             }
         )
 

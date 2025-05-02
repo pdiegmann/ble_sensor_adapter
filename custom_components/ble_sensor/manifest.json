@@ -12,11 +12,23 @@
     },
     {
       "connectable": true,
+      "local_name": "PETKIT*"
+    },
+    {
+      "connectable": true,
+      "local_name": "petkit*"
+    },
+    {
+      "connectable": true,
       "manufacturer_id": "Petkit*"
     },
     {
       "connectable": true,
       "manufacturer_id": "petkit*"
+    },
+    {
+      "connectable": true,
+      "manufacturer_data_start": [0x45, 0x46]
     }
   ],
   "codeowners": ["@pdiegmann"],

@@ -15,6 +15,12 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntityDescription,
     BinarySensorDeviceClass
 )
+from homeassistant.components.switch import (
+    SwitchEntityDescription,
+)
+from homeassistant.components.select import (
+    SelectEntityDescription,
+)
 from homeassistant.const import (
     PERCENTAGE,
     UnitOfTime,
@@ -129,33 +135,6 @@ class PetkitFountain(DeviceType):
                 icon=None,
             ),
             SensorEntityDescription(
-                key=KEY_PF_POWER_STATUS,
-                name="Power Status",
-                device_class=None,
-                state_class=None,
-                native_unit_of_measurement=None,
-                entity_category=None,
-                icon="mdi:power",
-            ),
-            SensorEntityDescription(
-                key=KEY_PF_MODE,
-                name="Mode",
-                device_class=None,
-                state_class=None,
-                native_unit_of_measurement=None,
-                entity_category=None,
-                icon="mdi:fountain",
-            ),
-            SensorEntityDescription(
-                key=KEY_PF_DND_STATE,
-                name="Do Not Disturb",
-                device_class=None,
-                state_class=None,
-                native_unit_of_measurement=None,
-                entity_category=EntityCategory.CONFIG,
-                icon="mdi:do-not-disturb",
-            ),
-            SensorEntityDescription(
                 key=KEY_PF_FILTER_PERCENT,
                 name="Filter Life",
                 device_class=None,
@@ -209,6 +188,32 @@ class PetkitFountain(DeviceType):
                 icon=None,
             ),
         ]
+        
+    def get_switch_descriptions(self) -> List[SwitchEntityDescription]:
+        """Return switch entity descriptions for this device type."""
+        return [
+            SwitchEntityDescription(
+                key=KEY_PF_POWER_STATUS,
+                name="Power",
+                icon="mdi:power",
+            ),
+            SwitchEntityDescription(
+                key=KEY_PF_DND_STATE,
+                name="Do Not Disturb",
+                icon="mdi:do-not-disturb",
+            ),
+        ]
+        
+    def get_select_descriptions(self) -> List[SelectEntityDescription]:
+        """Return select entity descriptions for this device type."""
+        return [
+            SelectEntityDescription(
+                key=KEY_PF_MODE,
+                name="Mode",
+                options=["Smart", "Normal"],
+                icon="mdi:fountain",
+            ),
+        ]
 
     def get_characteristics(self) -> List[str]:
         """Return characteristic UUIDs this device uses."""
@@ -256,8 +261,86 @@ class PetkitFountain(DeviceType):
         """Increment and wrap the command sequence number."""
         self._sequence = (self._sequence + 1) % 256
 
+    # Methods to handle setting values
+    async def async_set_power_status(self, client: BleakClient, state: bool) -> bool:
+        """Set the power status of the device."""
+        try:
+            # Get current state first
+            state_payload = await self._send_command_and_wait(
+                client, CMD_GET_DEVICE_STATE, 1, [0, 0], RESP_DEVICE_STATE
+            )
+            
+            if not state_payload or len(state_payload) < 12:
+                _LOGGER.error("Failed to get device state before setting power")
+                return False
+                
+            # Copy current state and modify the power status byte
+            new_state = list(state_payload)
+            new_state[0] = 1 if state else 0
+            
+            # Send command to set state
+            await self._send_command_and_wait(
+                client, CMD_SET_DEVICE_MODE, 1, new_state, 999
+            )
+            
+            return True
+        except Exception as e:
+            _LOGGER.error(f"Error setting power status: {e}")
+            return False
+    
+    async def async_set_mode(self, client: BleakClient, mode: str) -> bool:
+        """Set the mode of the device."""
+        try:
+            # Get current state first
+            state_payload = await self._send_command_and_wait(
+                client, CMD_GET_DEVICE_STATE, 1, [0, 0], RESP_DEVICE_STATE
+            )
+            
+            if not state_payload or len(state_payload) < 12:
+                _LOGGER.error("Failed to get device state before setting mode")
+                return False
+                
+            # Copy current state and modify the mode byte
+            new_state = list(state_payload)
+            new_state[1] = 2 if mode.lower() == "smart" else 1
+            
+            # Send command to set state
+            await self._send_command_and_wait(
+                client, CMD_SET_DEVICE_MODE, 1, new_state, 999
+            )
+            
+            return True
+        except Exception as e:
+            _LOGGER.error(f"Error setting mode: {e}")
+            return False
+    
+    async def async_set_dnd_state(self, client: BleakClient, state: bool) -> bool:
+        """Set the Do Not Disturb state of the device."""
+        try:
+            # Get current config first
+            config_payload = await self._send_command_and_wait(
+                client, CMD_GET_DEVICE_CONFIG, 1, [0, 0], RESP_DEVICE_CONFIG
+            )
+            
+            if not config_payload or len(config_payload) < 9:
+                _LOGGER.error("Failed to get device config before setting DND")
+                return False
+                
+            # Copy current config and modify the DND byte
+            new_config = list(config_payload)
+            new_config[8] = 1 if state else 0
+            
+            # Send command to set config
+            await self._send_command_and_wait(
+                client, CMD_SET_DEVICE_CONFIG, 1, new_config, 999
+            )
+            
+            return True
+        except Exception as e:
+            _LOGGER.error(f"Error setting DND state: {e}")
+            return False
+
     # The following methods would be used during the fetch_data operation in the coordinator
-    # These would be called by extending the coordinator's fetch_data method for this device type
 
     async def async_custom_initialization(self, client: BleakClient, data_callback) -> bool:
         """Initialize the Petkit Fountain device, setting up notifications and initial commands."""

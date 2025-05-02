@@ -28,7 +28,7 @@
     },
     {
       "connectable": true,
-      "manufacturer_data_start": [0x45, 0x46]
+      "manufacturer_data_start": [69, 70]
     }
   ],
   "codeowners": ["@pdiegmann"],

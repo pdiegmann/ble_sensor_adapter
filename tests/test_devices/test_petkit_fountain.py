@@ -22,39 +22,29 @@ def mock_raw_data():
 
 def test_parse_data(mock_raw_data):
     """Test parsing of raw device data."""
-    device_data = PetkitFountainData()
-    device_data._parsed_data = mock_raw_data.copy()
-    device_data.parse_data()
-
+    device_data = PetkitFountainData(raw_data=mock_raw_data)
+    
     assert device_data._parsed_data[KEY_PF_BATTERY] == 75
     assert device_data._parsed_data[KEY_PF_MODE] == "Smart"
-    assert device_data._parsed_data[KEY_PF_POWER_STATUS] == 1
-    assert device_data._parsed_data[KEY_PF_DND_STATE] == 0
+    assert device_data._parsed_data[KEY_PF_POWER_STATUS] == True
+    assert device_data._parsed_data[KEY_PF_DND_STATE] == False
 
 def test_parse_data_battery_limits():
     """Test battery value limiting."""
-    device_data = PetkitFountainData()
-    
     # Test battery value below 0
-    device_data._parsed_data = {KEY_PF_BATTERY: -10}
-    device_data.parse_data()
+    device_data = PetkitFountainData(raw_data={KEY_PF_BATTERY: -10})
     assert device_data._parsed_data[KEY_PF_BATTERY] == 0
 
     # Test battery value above 100
-    device_data._parsed_data = {KEY_PF_BATTERY: 150}
-    device_data.parse_data()
+    device_data = PetkitFountainData(raw_data={KEY_PF_BATTERY: 150})
     assert device_data._parsed_data[KEY_PF_BATTERY] == 100
 
 def test_parse_data_mode():
     """Test mode parsing."""
-    device_data = PetkitFountainData()
-    
     # Test normal mode
-    device_data._parsed_data = {KEY_PF_MODE: 1}
-    device_data.parse_data()
+    device_data = PetkitFountainData(raw_data={KEY_PF_MODE: 1})
     assert device_data._parsed_data[KEY_PF_MODE] == "Normal"
 
     # Test smart mode
-    device_data._parsed_data = {KEY_PF_MODE: 2}
-    device_data.parse_data()
+    device_data = PetkitFountainData(raw_data={KEY_PF_MODE: 2})
     assert device_data._parsed_data[KEY_PF_MODE] == "Smart"

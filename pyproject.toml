@@ -15,6 +15,7 @@ dependencies = [
     "homeassistant>=2024.12.5",
     "voluptuous>=0.15.2",
     "pytest==8.3.4",
+    "pyserial>=3.5",
 ]
 
 [tool.pytest.ini_options]

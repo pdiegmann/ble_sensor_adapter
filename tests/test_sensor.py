@@ -3,7 +3,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from homeassistant.const import STATE_UNAVAILABLE
-from custom_components.ble_sensor.sensor import BLESensor
+from homeassistant.components.sensor import SensorEntityDescription, SensorDeviceClass
+from custom_components.ble_sensor.sensor import BLESensorAdapterSensor
 from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
 
 async def test_sensor_state(hass_mock, mock_config_entry):
@@ -13,30 +14,37 @@ async def test_sensor_state(hass_mock, mock_config_entry):
         mock_config_entry,
         update_interval=30
     )
+
+    # Create mock device
+    device = MagicMock()
+    device.name = "Test Device"
+    device.address = "00:11:22:33:44:55"
+    device.get_manufacturer.return_value = "Test Manufacturer"
+    device.get_model.return_value = "Test Model"
     
     # Create a test sensor
-    sensor = BLESensor(
+    sensor = BLESensorAdapterSensor(
         coordinator,
-        "test_id",
-        "Test Sensor",
-        "test_key",
-        "measurement",
-        device_class="battery"
+        device,
+        "battery",
+        "Battery",
+        device_class=SensorDeviceClass.BATTERY,
+        unit_of_measurement="%"
     )
 
     # Test initial state
     assert sensor.available is False
-    assert sensor.state == STATE_UNAVAILABLE
+    assert sensor.native_value is None
 
     # Test state update
-    coordinator.data = {"test_key": 75}
-    assert sensor.state == 75
+    coordinator.data = {"battery": 75}
+    assert sensor.native_value == 75
     assert sensor.available is True
 
-    # Test invalid data
+    # Test missing data
     coordinator.data = {"other_key": 50}
-    assert sensor.state is None
-    
+    assert sensor.native_value is None
+
 async def test_sensor_device_info(hass_mock, mock_config_entry):
     """Test sensor device info."""
     coordinator = BLESensorDataUpdateCoordinator(
@@ -44,35 +52,48 @@ async def test_sensor_device_info(hass_mock, mock_config_entry):
         mock_config_entry,
         update_interval=30
     )
+
+    # Create mock device
+    device = MagicMock()
+    device.name = "Test Device"
+    device.address = "00:11:22:33:44:55"
+    device.get_manufacturer.return_value = "Test Manufacturer"
+    device.get_model.return_value = "Test Model"
     
-    sensor = BLESensor(
+    sensor = BLESensorAdapterSensor(
         coordinator,
-        "test_id",
-        "Test Sensor",
-        "test_key",
-        "measurement"
+        device,
+        "battery",
+        "Battery"
     )
     
     device_info = sensor.device_info
     assert device_info is not None
     assert "identifiers" in device_info
-    assert "name" in device_info
+    assert device_info["manufacturer"] == "Test Manufacturer"
+    assert device_info["model"] == "Test Model"
 
-async def test_sensor_unique_id(hass_mock, mock_config_entry):
-    """Test sensor unique ID generation."""
+async def test_sensor_attributes(hass_mock, mock_config_entry):
+    """Test sensor attributes."""
     coordinator = BLESensorDataUpdateCoordinator(
         hass_mock,
         mock_config_entry,
         update_interval=30
     )
+
+    # Create mock device
+    device = MagicMock()
+    device.name = "Test Device"
+    device.address = "00:11:22:33:44:55"
     
-    sensor = BLESensor(
+    sensor = BLESensorAdapterSensor(
         coordinator,
-        "test_id",
-        "Test Sensor",
-        "test_key",
-        "measurement"
+        device,
+        "temperature",
+        "Temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        unit_of_measurement="°C"
     )
     
-    assert sensor.unique_id is not None
-    assert "test_id" in sensor.unique_id
+    assert sensor.device_class == SensorDeviceClass.TEMPERATURE
+    assert sensor.native_unit_of_measurement == "°C"

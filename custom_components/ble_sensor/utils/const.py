@@ -2,6 +2,7 @@
 from typing import Final
 
 DOMAIN: Final = "ble_sensor"
+CONF_LOG_LEVEL: Final = "log_level"
 CONF_DEVICE_TYPE: Final = "device_type"
 CONF_MAC: Final = "mac"
 CONF_SCAN_INTERVAL: Final = "scan_interval"

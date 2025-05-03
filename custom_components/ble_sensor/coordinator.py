@@ -244,6 +244,12 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
         
         # Notify entities that depend on this device
         self.async_update_listeners()
+        
+        # Cancel any pending updates for this device
+        if device_id in self._pending_updates:
+            if self._pending_updates[device_id] is not None:
+                self._pending_updates[device_id].cancel()
+            self._pending_updates[device_id] = None
     
     async def async_update_device(self, device_id: str) -> None:
         """Update data from a specific device."""

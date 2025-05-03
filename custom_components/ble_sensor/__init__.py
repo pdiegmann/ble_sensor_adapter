@@ -40,9 +40,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Set up entry update listener
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
-    
+
     for device_config in coordinator.device_configs:
+        device_id = device_config.device_id
         address = device_config.address
+
         # Register to receive callbacks when this device is discovered
         entry.async_on_unload(
             bluetooth.async_register_callback(
@@ -55,12 +57,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         )
         
-        # Track when devices go unavailable
         entry.async_on_unload(
             bluetooth.async_track_unavailable(
                 hass,
-                lambda service_info: coordinator.device_unavailable(
-                    service_info, device_config.device_id
+                lambda service_info, dev_id=device_id: coordinator.device_unavailable(
+                    service_info, dev_id
                 ),
                 address,
                 connectable=True

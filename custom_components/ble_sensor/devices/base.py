@@ -2,10 +2,18 @@
 from abc import ABC, abstractmethod
 import asyncio
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Type, Union
 from bleak_retry_connector import establish_connection
 
+from homeassistant.components.binary_sensor import BinarySensorEntityDescription
+from homeassistant.components.select import SelectEntityDescription
+from homeassistant.components.sensor import SensorEntityDescription
+from homeassistant.components.switch import SwitchEntityDescription
+
 from bleak import BleakClient
+
+from custom_components.ble_sensor.devices.device import BLEDevice, DeviceData
+from custom_components.ble_sensor.utils import bluetooth
 
 _LOGGER = logging.getLogger(__name__)
     
@@ -178,8 +186,47 @@ class DeviceType(ABC):
             # Log error and re-raise
             _LOGGER.error("Error connecting to %s: %s", ble_device.address, str(e))
             raise
-    
-    @abstractmethod
-    async def _get_data(self, client):
-        pass
+
+
+    async def connect_and_get_data(self, hass, address):
+        """Connect to device and retrieve data with robust retry handling."""
+        try:
+            # Get a fresh BLE device reference each time
+            ble_device = bluetooth.async_ble_device_from_address(
+                hass, address, connectable=True
+            )
+            
+            if not ble_device:
+                _LOGGER.error("No connectable device found for %s", address)
+                return None
+                
+            # Use bleak-retry-connector for more reliable connections
+            async with asyncio.timeout(30):  # 30 second timeout
+                client = await establish_connection(
+                    client_class=BleakClient,
+                    device=ble_device,
+                    name=address,
+                    timeout=10.0  # Use at least 10 second timeout as recommended
+                )
+                
+                try:
+                    # Get device data
+                    return await self._get_device_data(client)
+                finally:
+                    # Always disconnect when done to prevent connection leaks
+                    if client.is_connected:
+                        await client.disconnect()
+                        
+        except asyncio.TimeoutError:
+            _LOGGER.error(
+                "Timeout connecting to device %s", address
+            )
+        except Exception as ex:
+            _LOGGER.error(
+                "Error connecting to device %s: %s", 
+                address, 
+                str(ex)
+            )
+        
+        return None
         

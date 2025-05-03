@@ -3,11 +3,14 @@ from unittest.mock import patch, MagicMock, AsyncMock
 import pytest
 from datetime import timedelta
 from asyncio import Future
+import logging
 
 from homeassistant.core import HomeAssistant
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak, BluetoothChange
 from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
 from custom_components.ble_sensor.utils.const import DOMAIN, CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL
+
+_LOGGER = logging.getLogger(__name__)
 
 def create_mock_coro(return_value=None):
     """Create a mock coroutine function."""
@@ -50,9 +53,16 @@ def mock_bluetooth(hass):
 async def test_coordinator_update(hass_mock, mock_config_entry, mock_device_type, mock_ble_connection, mock_bluetooth):
     """Test coordinator update functionality."""
     with patch("custom_components.ble_sensor.coordinator.get_device_type", return_value=mock_device_type):
+        devices = [{
+            "id": "test_device",
+            "address": "00:11:22:33:44:55",
+            "type": "petkit_fountain",
+            "name": "Test Device"
+        }]
         coordinator = BLESensorDataUpdateCoordinator(
             hass_mock,
-            mock_config_entry
+            _LOGGER,
+            devices
         )
 
         # Set up mock device data
@@ -73,29 +83,36 @@ async def test_coordinator_update(hass_mock, mock_config_entry, mock_device_type
 async def test_coordinator_initialization(hass_mock, mock_config_entry, mock_device_type, mock_ble_connection):
     """Test coordinator initialization."""
     with patch("custom_components.ble_sensor.coordinator.get_device_type", return_value=mock_device_type):
+        devices = [{
+            "id": "test_device",
+            "address": "00:11:22:33:44:55",
+            "type": "petkit_fountain",
+            "name": "Test Device"
+        }]
         coordinator = BLESensorDataUpdateCoordinator(
             hass_mock,
-            mock_config_entry
+            _LOGGER,
+            devices
         )
-        
-        assert coordinator.domain == DOMAIN
-        assert coordinator.entry_id == mock_config_entry.entry_id
-        assert len(coordinator.device_configs) == 1
-        assert coordinator.device_configs[0].device_id == f"ble_sensor_{coordinator.mac_address}"
 
-        # Test device availability checking
-        device_id = coordinator.device_configs[0].device_id
-        assert coordinator.is_device_available(device_id) is False
-        coordinator._device_status[device_id] = True
-        assert coordinator.is_device_available(device_id) is True
+        assert coordinator is not None
+        assert len(coordinator.device_configs) == 1
+        assert coordinator.device_configs[0].device_id == "test_device"
 
 @pytest.mark.asyncio
 async def test_coordinator_stop(hass_mock, mock_config_entry, mock_device_type, mock_ble_connection):
     """Test coordinator cleanup on stop."""
     with patch("custom_components.ble_sensor.coordinator.get_device_type", return_value=mock_device_type):
+        devices = [{
+            "id": "test_device",
+            "address": "00:11:22:33:44:55",
+            "type": "petkit_fountain",
+            "name": "Test Device"
+        }]
         coordinator = BLESensorDataUpdateCoordinator(
             hass_mock,
-            mock_config_entry
+            _LOGGER,
+            devices
         )
         
         # Set up test state

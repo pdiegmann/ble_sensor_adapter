@@ -2,12 +2,15 @@
 from unittest.mock import MagicMock, patch, AsyncMock
 import pytest
 from asyncio import Future
+import logging
 
 from homeassistant.const import STATE_UNAVAILABLE
 from custom_components.ble_sensor.select import BLESelectEntity
 from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
 from homeassistant.components.select import SelectEntityDescription
 from custom_components.ble_sensor.utils.const import KEY_PF_MODE
+
+_LOGGER = logging.getLogger(__name__)
 
 def create_mock_coro(return_value=None):
     """Create a mock coroutine function."""
@@ -24,9 +27,16 @@ async def test_select_options(hass_mock, mock_config_entry):
         device_type.create_device.return_value = MagicMock()
         mock_get_device_type.return_value = device_type
 
+        devices = [{
+            "id": "test_device",
+            "address": "00:11:22:33:44:55",
+            "type": "petkit_fountain",
+            "name": "Test Device"
+        }]
         coordinator = BLESensorDataUpdateCoordinator(
             hass_mock,
-            mock_config_entry
+            _LOGGER,
+            devices
         )
     
         description = SelectEntityDescription(
@@ -58,9 +68,16 @@ async def test_select_select_option(hass_mock, mock_config_entry):
         device_type.create_device.return_value = MagicMock()
         mock_get_device_type.return_value = device_type
 
+        devices = [{
+            "id": "test_device",
+            "address": "00:11:22:33:44:55",
+            "type": "petkit_fountain",
+            "name": "Test Device"
+        }]
         coordinator = BLESensorDataUpdateCoordinator(
             hass_mock,
-            mock_config_entry
+            _LOGGER,
+            devices
         )
     
         description = SelectEntityDescription(
@@ -93,9 +110,16 @@ async def test_select_invalid_option(hass_mock, mock_config_entry):
         device_type.create_device.return_value = MagicMock()
         mock_get_device_type.return_value = device_type
 
+        devices = [{
+            "id": "test_device",
+            "address": "00:11:22:33:44:55",
+            "type": "petkit_fountain",
+            "name": "Test Device"
+        }]
         coordinator = BLESensorDataUpdateCoordinator(
             hass_mock,
-            mock_config_entry
+            _LOGGER,
+            devices
         )
 
         description = SelectEntityDescription(

@@ -6,6 +6,7 @@ import logging
 import time
 from datetime import timedelta
 from typing import Any, Dict, Optional, List
+from dataclasses import dataclass
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -16,13 +17,9 @@ from homeassistant.helpers.dispatcher import (
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from custom_components.ble_sensor.devices.petkit_fountain import PetkitFountain
-from custom_components.ble_sensor.devices.soil_tester import SoilTester
-
 from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak, BluetoothChange
 from bleak.exc import BleakError
-from homeassistant.core import callback
 import async_timeout
 
 from custom_components.ble_sensor.utils.bluetooth import BLEConnection
@@ -36,84 +33,175 @@ from custom_components.ble_sensor.utils.const import (
     SIGNAL_DEVICE_AVAILABLE,
     SIGNAL_DEVICE_UNAVAILABLE,
 )
-from custom_components.ble_sensor.devices.device import BLEDevice
 from custom_components.ble_sensor.devices import get_device_type
 
 _LOGGER = logging.getLogger(__name__)
 
+@dataclass
 class DeviceConfig:
-    """Device configuration class."""
-
-    def __init__(self, device_id: str, name: str, address: str, device_type: str):
-        """Initialize device config."""
-        self.device_id = device_id
-        self.name = name
-        self.address = address
-        self.device_type = device_type
+    """Class to hold device configuration."""
+    device_id: str
+    name: str
+    address: str
+    device_type: str
+    polling_interval: int = DEFAULT_POLL_INTERVAL
 
 class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching BLE Sensor data."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
-        """Initialize coordinator."""
-        self.hass = hass
-        self.entry = entry
-        self.entry_id = entry.entry_id
-        self.domain = DOMAIN
-        
-        # Extract configuration
-        self.mac_address = entry.data[CONF_MAC]
-        self.device_type_name = entry.data[CONF_DEVICE_TYPE]
-        self.poll_interval = entry.options.get(
-            CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL
-        )
-        
-        # Create device type and device
-        try:
-            self.device_type = get_device_type(self.device_type_name)
-            self.device = self.device_type.create_device(self.mac_address)
-        except Exception as ex:
-            _LOGGER.error("Failed to create device type: %s", ex)
-            raise ConfigEntryNotReady from ex
-        
-        # Initialize device tracking
-        self.device_configs = [
-            DeviceConfig(
-                device_id=f"ble_sensor_{self.mac_address}",
-                name=entry.title,
-                address=self.mac_address,
-                device_type=self.device_type_name
-            )
-        ]
-        self._device_data = {}
-        self._device_status = {}
-        self._devices_info = {}
-        self._pending_updates = {}
-        self._last_update = {}
-        
-        # Set polling interval with a minimum of 30 seconds to prevent excessive connections
-        update_interval = timedelta(seconds=max(30, self.poll_interval))
-        
+    def __init__(
+        self, 
+        hass: HomeAssistant, 
+        logger: logging.Logger,
+        devices: List[Dict[str, Any]],
+    ) -> None:
+        """Initialize the coordinator."""
         super().__init__(
             hass,
-            _LOGGER,
-            name=f"{DOMAIN}_{self.mac_address}",
-            update_interval=update_interval if self.device_type.requires_polling() else None,
+            logger,
+            name=DOMAIN,
+            update_interval=self._get_min_update_interval(devices),
         )
         
-        # Initialize BLE connection
-        self.ble_connection = BLEConnection(
-            hass, self.mac_address, self.entry_id, self._handle_device_data
-        )
+        # Convert the device dictionaries to DeviceConfig objects
+        self.device_configs = [DeviceConfig(**device) for device in devices]
         
+        # Initialize data storage
+        self._device_data = {}  # Stores the latest data for each device
+        self._device_status = {}  # Stores whether each device is available
+        self._last_update = {}  # Stores the timestamp of the last successful update
+        self._pending_updates = {}  # Stores pending update tasks
+        self._devices_info = {}  # Stores the latest service info for each device
+        
+        # Initialize the status for each device as unavailable
+        for device_config in self.device_configs:
+            self._device_status[device_config.device_id] = False
+            self._last_update[device_config.device_id] = 0
+            self._pending_updates[device_config.device_id] = None
+
         self._available = False
         self._handlers = []
         self._initialization_lock = asyncio.Lock()
         self._initialization_complete = False
 
+    def _get_min_update_interval(self, devices: List[Dict[str, Any]]) -> timedelta:
+        """Get the minimum polling interval from all devices."""
+        if not devices:
+            return timedelta(seconds=DEFAULT_POLL_INTERVAL)
+            
+        min_interval = min(
+            device.get("polling_interval", DEFAULT_POLL_INTERVAL) 
+            for device in devices
+        )
+        
+        # Ensure minimum interval is at least 30 seconds to avoid overwhelming
+        return timedelta(seconds=max(min_interval, 30))
+        
     def _get_device_handler(self, device_type: str):
-        """Get the appropriate device handler."""
+        """Get the device handler for the specified device type."""
         return get_device_type(device_type)
+        
+    def _is_update_due(self, device_id: str) -> bool:
+        """Determine if a device is due for an update."""
+        device_config = next(
+            (d for d in self.device_configs if d.device_id == device_id), 
+            None
+        )
+        
+        if not device_config:
+            return False
+            
+        last_update = self._last_update.get(device_id, 0)
+        now = time.time()
+        
+        # Check if enough time has passed since the last update
+        return (now - last_update) >= device_config.polling_interval
+    
+    def is_device_available(self, device_id: str) -> bool:
+        """Return if device is available."""
+        return self._device_status.get(device_id, False)
+        
+    def get_device_data(self, device_id: str) -> Optional[Dict[str, Any]]:
+        """Get the latest data for a device."""
+        return self._device_data.get(device_id)
+    
+    def add_device(self, device_config: Dict[str, Any]) -> str:
+        """Add a new device to be monitored."""
+        device_id = device_config.get("id", device_config.get("address"))
+        
+        # Check if device already exists
+        if any(d.device_id == device_id for d in self.device_configs):
+            return device_id
+            
+        # Create a new DeviceConfig and add it
+        config = DeviceConfig(
+            device_id=device_id,
+            name=device_config.get("name", f"Device {device_config.get('address')}"),
+            address=device_config.get("address"),
+            device_type=device_config.get("type"),
+            polling_interval=device_config.get("polling_interval", DEFAULT_POLL_INTERVAL),
+        )
+        
+        self.device_configs.append(config)
+        
+        # Initialize data stores for this device
+        self._device_status[device_id] = False
+        self._last_update[device_id] = 0
+        self._pending_updates[device_id] = None
+        
+        # Recalculate update interval
+        self.update_interval = self._get_min_update_interval(
+            [
+                {
+                    "id": d.device_id,
+                    "polling_interval": d.polling_interval
+                } 
+                for d in self.device_configs
+            ]
+        )
+        
+        return device_id
+        
+    def remove_device(self, device_id: str) -> bool:
+        """Remove a device from monitoring."""
+        # Find the device
+        device_index = next(
+            (i for i, d in enumerate(self.device_configs) if d.device_id == device_id), 
+            None
+        )
+        
+        if device_index is None:
+            return False
+            
+        # Remove the device
+        self.device_configs.pop(device_index)
+        
+        # Clean up data stores
+        if device_id in self._device_data:
+            del self._device_data[device_id]
+        if device_id in self._device_status:
+            del self._device_status[device_id]
+        if device_id in self._last_update:
+            del self._last_update[device_id]
+        if device_id in self._pending_updates:
+            if self._pending_updates[device_id] is not None:
+                self._pending_updates[device_id].cancel()
+            del self._pending_updates[device_id]
+        if device_id in self._devices_info:
+            del self._devices_info[device_id]
+            
+        # Recalculate update interval
+        self.update_interval = self._get_min_update_interval(
+            [
+                {
+                    "id": d.device_id,
+                    "polling_interval": d.polling_interval
+                } 
+                for d in self.device_configs
+            ]
+        )
+        
+        return True
 
     async def async_start(self) -> None:
         """Start the coordinator."""
@@ -424,4 +512,11 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
         now = time.time()
         
         # Check if enough time has passed since the last update
-        return (now - last_update) >= self.poll_interval
+        return (now - last_update) >= self.update_interval
+
+    @property
+    def mac_address(self) -> str:
+        """Return the MAC address of the first device."""
+        if self.device_configs:
+            return self.device_configs[0].address
+        return None

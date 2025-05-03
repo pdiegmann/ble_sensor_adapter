@@ -1,13 +1,14 @@
 import logging
+from custom_components.ble_sensor.devices.base import DeviceType
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
 from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, DOMAIN
 from custom_components.ble_sensor.devices import get_device_type
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from custom_components.ble_sensor.utils.const import KEY_PF_DND_STATE, KEY_PF_POWER_STATUS
-from custom_components.ble_sensor.entity import BLESensorEntity
+from custom_components.ble_sensor.entity import BaseDeviceEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,30 +38,17 @@ async def async_setup_entry(
     else:
         _LOGGER.debug("No switch entities to add for this device type.")
 
-
-class BLESwitchEntity(BLESensorEntity, SwitchEntity):
+class BLESwitchEntity(BaseDeviceEntity, SwitchEntity):
     """Representation of a BLE switch."""
 
-    def __init__(self, coordinator, description):
+    def __init__(self, coordinator: BLESensorDataUpdateCoordinator, description: SwitchEntityDescription, device: DeviceType):
         """Initialize the BLE switch."""
-        super().__init__(coordinator, description)
+        super().__init__(coordinator, description, device)
 
     @property
     def is_on(self):
         """Return true if the switch is on."""
-        if not self.coordinator.data:
-            return None
-            
-        state = self.coordinator.data.get(self._key)
-        if state is None:
-            return None
-            
-        # Handle different types of state values
-        if isinstance(state, bool):
-            return state
-        elif isinstance(state, str):
-            return state.lower() in ("on", "true", "1")
-        return bool(state)
+        return self.as_bool(self.native_value)
 
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
@@ -86,11 +74,4 @@ class BLESwitchEntity(BLESensorEntity, SwitchEntity):
             )
         await self.coordinator.async_request_refresh()
 
-    @property
-    def available(self) -> bool:
-        """Return True if entity is available."""
-        return (
-            super().available
-            and self.coordinator.is_device_available(self._device_id)
-        )
         

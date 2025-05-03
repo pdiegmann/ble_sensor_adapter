@@ -1,4 +1,5 @@
 import logging
+from custom_components.ble_sensor.devices.base import DeviceType
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -6,9 +7,9 @@ from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordina
 from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, DOMAIN
 from custom_components.ble_sensor.devices import get_device_type
 from custom_components.ble_sensor.utils.const import KEY_PF_MODE
-from homeassistant.components.select import SelectEntity
+from homeassistant.components.select import SelectEntity, SelectEntityDescription
 
-from custom_components.ble_sensor.entity import BLESensorEntity
+from custom_components.ble_sensor.entity import BaseDeviceEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,21 +39,17 @@ async def async_setup_entry(
     else:
         _LOGGER.debug("No select entities to add for this device type.")
 
-class BLESelectEntity(BLESensorEntity, SelectEntity):
+class BLESelectEntity(BaseDeviceEntity, SelectEntity):
     """Representation of a BLE select."""
 
-    def __init__(self, coordinator, description):
+    def __init__(self, coordinator: BLESensorDataUpdateCoordinator, description: SelectEntityDescription, device: DeviceType):
         """Initialize the BLE select."""
-        super().__init__(coordinator, description)
-        self._attr_options = description.options
+        super().__init__(coordinator, description, device)
 
     @property
     def current_option(self):
         """Return the current selected option."""
-        if not self.coordinator.data:
-            return None
-        
-        return self.coordinator.data.get(self._key)  # use self._key here
+        return self.coordinator.data.get(self._key)
 
     async def async_select_option(self, option):
         """Change the selected option."""
@@ -61,12 +58,4 @@ class BLESelectEntity(BLESensorEntity, SelectEntity):
                 self.coordinator.ble_connection.client, option
             )
         await self.coordinator.async_request_refresh()
-
-    @property
-    def available(self) -> bool:
-        """Return True if entity is available."""
-        return (
-            super().available
-            and self.coordinator.is_device_available(self._device_id)
-        )
         

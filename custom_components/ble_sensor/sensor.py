@@ -4,12 +4,12 @@ from typing import Any, Dict, Optional
 
 from bleak.backends.device import BLEDevice
 
-from homeassistant.components.sensor import SensorEntity
+from custom_components.ble_sensor.devices.base import DeviceType
+from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.ble_sensor.utils import bluetooth
 from custom_components.ble_sensor.utils.const import (
@@ -79,16 +79,7 @@ async def async_setup_entry(
         # Create sensor entities for each supported sensor type
         for sensor_info in device_instance.get_supported_sensors():
             entities.append(
-                BLESensorAdapterSensor(
-                    coordinator,
-                    device_instance,
-                    sensor_info["key"],
-                    sensor_info["name"],
-                    sensor_info.get("device_class"),
-                    sensor_info.get("state_class"),
-                    sensor_info.get("unit_of_measurement"),
-                    sensor_info.get("icon"),
-                )
+                BLESensorAdapterSensor(coordinator, sensor_info, device_instance)
             )
     
     if entities:
@@ -113,65 +104,17 @@ async def async_get_ble_device(hass: HomeAssistant, address: str) -> Optional[BL
         _LOGGER.error("Error scanning for device %s: %s", address, str(ex))
         return None
 
-class BLESensorAdapterSensor(CoordinatorEntity, SensorEntity):
+class BLESensorAdapterSensor(DeviceType, SensorEntity):
     """BLE Sensor Adapter sensor entity."""
 
     def __init__(
         self,
         coordinator: BLESensorDataUpdateCoordinator,
-        device: Any,
-        key: str,
-        name: str,
-        device_class: Optional[str] = None,
-        state_class: Optional[str] = None,
-        unit_of_measurement: Optional[str] = None,
-        icon: Optional[str] = None,
+        description: SensorEntityDescription,
+        device: DeviceType
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator)
-        
-        self._device = device
-        self._key = key
-        self._device_id = device.address  # Add this line
-        self._attr_name = f"{device.name} {name}"
-        self._attr_unique_id = f"{DOMAIN}_{device.address}_{key}"
-        
-        if device_class is not None:
-            self._attr_device_class = device_class
-        
-        if state_class is not None:
-            self._attr_state_class = state_class
-            
-        if unit_of_measurement is not None:
-            self._attr_native_unit_of_measurement = unit_of_measurement
-            
-        if icon is not None:
-            self._attr_icon = icon
-        
-        # Device info
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, device.address)},
-            name=device.name,
-            manufacturer=device.get_manufacturer(),
-            model=device.get_model(),
-            via_device=(DOMAIN, device.address),
-        )
-    
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        # Use both the coordinator's availability and our own data check
-        coordinator_available = super().available
-        has_data = (
-            self.coordinator.data is not None and 
-            self._key in self.coordinator.data
-        )
-        return coordinator_available and has_data
-    
-    @property
-    def native_value(self) -> Any:
-        """Return the value reported by the sensor."""
-        return self.coordinator.data.get(self._key) if self.coordinator.data else None
+        super().__init__(coordinator, description, device)
     
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
@@ -194,17 +137,3 @@ class BLESensorAdapterSensor(CoordinatorEntity, SensorEntity):
         
         return attributes
     
-    async def async_added_to_hass(self) -> None:
-        """When entity is added to Home Assistant."""
-        await super().async_added_to_hass()
-        
-        # Update state immediately when added to hass
-        self.async_write_ha_state()
-
-    @property
-    def available(self) -> bool:
-        """Return True if entity is available."""
-        return (
-            super().available
-            and self.coordinator.is_device_available(self._device_id)
-        )

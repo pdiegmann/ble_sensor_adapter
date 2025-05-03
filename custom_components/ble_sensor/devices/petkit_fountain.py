@@ -4,8 +4,9 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union, override
 import binascii
+from bleak_retry_connector import establish_connection
 
 from homeassistant.components.sensor import (
     SensorEntityDescription,
@@ -47,7 +48,7 @@ from custom_components.ble_sensor.utils.const import (
     KEY_PF_FILTER_PERCENT,
     KEY_PF_RUNNING_STATUS,
 )
-from custom_components.ble_sensor.devices.base import BaseDeviceData, DeviceType
+from custom_components.ble_sensor.devices.base import DeviceType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -85,33 +86,6 @@ INIT_COMMAND_TIMEOUT = 30  # seconds for initialization commands
 NORMAL_COMMAND_TIMEOUT = 10  # seconds for normal operation commands
 RETRY_DELAY = 2  # seconds between retries
 
-class PetkitFountainData(BaseDeviceData):
-    """Petkit Fountain data parser."""
-
-    def parse_data(self) -> None:
-        """Parse the raw data into usable data."""
-        super().parse_data()
-        
-        # Process power status to boolean if it's a string
-        if KEY_PF_POWER_STATUS in self._parsed_data:
-            if isinstance(self._parsed_data[KEY_PF_POWER_STATUS], str):
-                self._parsed_data[KEY_PF_POWER_STATUS] = self._parsed_data[KEY_PF_POWER_STATUS].lower() == "on"
-                
-        # Process DND state to boolean if it's a string
-        if KEY_PF_DND_STATE in self._parsed_data:
-            if isinstance(self._parsed_data[KEY_PF_DND_STATE], str):
-                self._parsed_data[KEY_PF_DND_STATE] = self._parsed_data[KEY_PF_DND_STATE].lower() == "on"
-                
-        # Convert numeric mode values to readable strings
-        if KEY_PF_MODE in self._parsed_data and isinstance(self._parsed_data[KEY_PF_MODE], int):
-            mode_val = self._parsed_data[KEY_PF_MODE]
-            self._parsed_data[KEY_PF_MODE] = "Smart" if mode_val == 2 else "Normal"
-            
-        # Ensure battery value is within range
-        if KEY_PF_BATTERY in self._parsed_data:
-            self._parsed_data[KEY_PF_BATTERY] = max(0, min(100, self._parsed_data[KEY_PF_BATTERY]))
-
-
 class PetkitFountain(DeviceType):
     """Petkit Fountain device type implementation."""
 
@@ -126,10 +100,6 @@ class PetkitFountain(DeviceType):
         self._notification_queue: Optional[asyncio.Queue] = None
         self._expected_responses: Dict[int, asyncio.Future] = {}
         self._is_initialized = False
-
-    def get_device_data_class(self) -> Type[DeviceData]:
-        """Return the data class for this device type."""
-        return PetkitFountainData
 
     def get_sensor_descriptions(self) -> List[SensorEntityDescription]:
         """Return sensor entity descriptions for this device type."""
@@ -626,6 +596,16 @@ class PetkitFountain(DeviceType):
                 
         return result
         
+    @override
+    async def _get_data(self, ble_device, uuid: Optional[str] = None) -> Dict[str, Any]|None:
+        client = await establish_connection(
+            client_class=BleakClient,
+            device=ble_device,
+            name=ble_device.address,
+            timeout=10.0  # Use at least 10 second timeout
+        )
+        return self.async_custom_fetch_data(client)
+
     async def async_custom_fetch_data(self, client: BleakClient) -> Dict[str, Any]:
         """Fetch data from the Petkit Fountain device."""
         _LOGGER.debug("Starting Petkit data fetch")

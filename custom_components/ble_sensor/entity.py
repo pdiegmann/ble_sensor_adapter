@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, Union
 
+from custom_components.ble_sensor.devices.base import DeviceType
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo, Entity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -12,33 +13,36 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.components.sensor import (
     SensorEntityDescription
 )
+from homeassistant.components.switch import SwitchEntityDescription
+from homeassistant.components.select import SelectEntityDescription
 
 from custom_components.ble_sensor.utils.const import DOMAIN, SIGNAL_DEVICE_UPDATE
 from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
 
-class BLESensorEntity(CoordinatorEntity[BLESensorDataUpdateCoordinator], Entity):
+class BaseDeviceEntity(CoordinatorEntity[BLESensorDataUpdateCoordinator], Entity):
     """Base entity for BLE Sensor."""
 
     def __init__(
         self, 
         coordinator: BLESensorDataUpdateCoordinator, 
-        description: Union[SensorEntityDescription, BinarySensorEntityDescription],
+        description: Union[SensorEntityDescription, BinarySensorEntityDescription, SwitchEntityDescription, SelectEntityDescription],
+        device: DeviceType
     ) -> None:
         """Initialize the entity."""
         super().__init__(coordinator)
-        
+        self.device = device
         self.entity_description = description
         self._key = description.key
-        self._device_id = coordinator.mac_address  # Add this line
-        self._attr_unique_id = f"{coordinator.device.unique_id}_{description.key}"
+        self._device_id = device.mac_address
+        self._attr_unique_id = f"{device.unique_id}_{description.key}"
         self._attr_name = description.name
 
         # Set device info
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, coordinator.mac_address)},
-            name=coordinator.device.name,
-            manufacturer=coordinator.device.manufacturer,
-            model=coordinator.device.model,
+            identifiers={(DOMAIN, device.mac_address)},
+            name=device.name,
+            manufacturer=device.manufacturer,
+            model=device.model,
             # Remove via_device reference that was causing warnings
         )
         
@@ -57,6 +61,9 @@ class BLESensorEntity(CoordinatorEntity[BLESensorDataUpdateCoordinator], Entity)
             
         if hasattr(description, "icon"):
             self._attr_icon = description.icon
+
+        if hasattr(description, "options"):
+            self._attr_options = description.options
             
         self._attr_has_entity_name = True
         self._attr_should_poll = False
@@ -81,9 +88,7 @@ class BLESensorEntity(CoordinatorEntity[BLESensorDataUpdateCoordinator], Entity)
     @property
     def native_value(self) -> Any:
         """Return the state of the entity."""
-        if self.coordinator.data and self._key in self.coordinator.data:
-            return self.coordinator.data[self._key]
-        return None
+        return self._attr_native_value
 
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
@@ -101,4 +106,27 @@ class BLESensorEntity(CoordinatorEntity[BLESensorDataUpdateCoordinator], Entity)
         return (
             super().available
             and self.coordinator.is_device_available(self._device_id)
+            and self._attr_native_value
         )
+        
+    @property
+    def attr_available(self) -> bool:
+        return self.available
+    
+    @property
+    def _attr_native_value(self):
+        return self.coordinator._device_data.get(self._device_id)
+    
+    async def async_added_to_hass(self) -> None:
+        """When entity is added to Home Assistant."""
+        await super().async_added_to_hass()
+        
+        # Update state immediately when added to hass
+        self.async_write_ha_state()
+    
+    def as_bool(self, val):
+        if isinstance(val, bool):
+            return val
+        elif isinstance(val, str):
+            return val.lower() in ("on", "true", "1")
+        return bool(val)

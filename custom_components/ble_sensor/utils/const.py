@@ -9,10 +9,10 @@ CONF_SCAN_INTERVAL: Final = "scan_interval"
 CONF_UPDATE_INTERVAL: Final = "update_interval"
 CONF_POLL_INTERVAL: Final = "poll_interval"
 CONF_RETRY_COUNT: Final = "retry_count"
-CONF_DEVICES = "devices"
-CONF_NAME = "name"
-CONF_ADDRESS = "address"
-CONF_TYPE = "type"
+CONF_DEVICES: Final = "devices"
+CONF_NAME: Final = "name"
+CONF_ADDRESS: Final = "address"
+CONF_TYPE: Final = "type"
 
 DEFAULT_SCAN_INTERVAL: Final = 60
 DEFAULT_UPDATE_INTERVAL: Final = 60

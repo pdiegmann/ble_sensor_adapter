@@ -8,6 +8,7 @@ from datetime import timedelta
 from typing import Any, Dict, Optional, List
 from dataclasses import dataclass
 
+from custom_components.ble_sensor.devices.base import DeviceType
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import (
@@ -34,6 +35,7 @@ from custom_components.ble_sensor.utils.const import (
     SIGNAL_DEVICE_UNAVAILABLE,
 )
 from custom_components.ble_sensor.devices import get_device_type
+from homeassistant.helpers import device_registry as dr
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,14 +48,14 @@ class DeviceConfig:
     device_type: str
     polling_interval: int = DEFAULT_POLL_INTERVAL
 
-class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
+class BLESensorDataUpdateCoordinator(DataUpdateCoordinator[dict[str, DeviceType]]):
     """Class to manage fetching BLE Sensor data."""
 
     def __init__(
         self, 
         hass: HomeAssistant, 
         logger: logging.Logger,
-        devices: List[Dict[str, Any]],
+        devices: List[DeviceType],
     ) -> None:
         """Initialize the coordinator."""
         super().__init__(
@@ -62,9 +64,21 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
             name=DOMAIN,
             update_interval=self._get_min_update_interval(devices),
         )
+
+        self.device_registry = dr.async_get(hass)
         
         # Convert the device dictionaries to DeviceConfig objects
-        self.device_configs = [DeviceConfig(**device) for device in devices]
+        self.device_configs = []
+        for device in devices:
+            self.device_configs.append(
+                DeviceConfig(
+                    device_id=device.get("id", device.get("address")),
+                    name=device.get("name", f"Device {device.get('address')}"),
+                    address=device.get("address"),
+                    device_type=device.get("type"),
+                    polling_interval=device.get("polling_interval", DEFAULT_POLL_INTERVAL),
+                )
+            )
         
         # Initialize data storage
         self._device_data = {}  # Stores the latest data for each device
@@ -79,12 +93,7 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
             self._last_update[device_config.device_id] = 0
             self._pending_updates[device_config.device_id] = None
 
-        self._available = False
-        self._handlers = []
-        self._initialization_lock = asyncio.Lock()
-        self._initialization_complete = False
-
-    def _get_min_update_interval(self, devices: List[Dict[str, Any]]) -> timedelta:
+    def _get_min_update_interval(self, devices: List[Dict[str, Any]]) -> int:
         """Get the minimum polling interval from all devices."""
         if not devices:
             return timedelta(seconds=DEFAULT_POLL_INTERVAL)
@@ -124,6 +133,15 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
     def get_device_data(self, device_id: str) -> Optional[Dict[str, Any]]:
         """Get the latest data for a device."""
         return self._device_data.get(device_id)
+
+    # Add the methods from my previous message here:
+    # - device_unavailable
+    # - device_discovered
+    # - _schedule_update_for_device
+    # - _update_device
+    # - async_update_data (the modified version)
+
+    # Then add these additional methods:
     
     def add_device(self, device_config: Dict[str, Any]) -> str:
         """Add a new device to be monitored."""
@@ -202,6 +220,42 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
         )
         
         return True
+
+    # def __init__(
+    #     self, 
+    #     hass: HomeAssistant, 
+    #     logger: logging.Logger,
+    #     devices: List[Dict[str, Any]],
+    # ) -> None:
+    #     """Initialize the coordinator."""
+    #     super().__init__(
+    #         hass,
+    #         logger,
+    #         name=DOMAIN,
+    #         update_interval=self._get_min_update_interval(devices),
+    #     )
+        
+    #     # Convert the device dictionaries to DeviceConfig objects
+    #     self.device_configs = [DeviceConfig(**device) for device in devices]
+        
+    #     # Initialize data storage
+    #     self._device_data = {}  # Stores the latest data for each device
+    #     self._device_status = {}  # Stores whether each device is available
+    #     self._last_update = {}  # Stores the timestamp of the last successful update
+    #     self._pending_updates = {}  # Stores pending update tasks
+    #     self._devices_info = {}  # Stores the latest service info for each device
+        
+    #     # Initialize the status for each device as unavailable
+    #     for device_config in self.device_configs:
+    #         self._device_status[device_config.device_id] = False
+    #         self._last_update[device_config.device_id] = 0
+    #         self._pending_updates[device_config.device_id] = None
+
+    #     self._available = False
+    #     self._handlers = []
+    #     self._initialization_lock = asyncio.Lock()
+    #     self._initialization_complete = False
+        
 
     async def async_start(self) -> None:
         """Start the coordinator."""
@@ -337,7 +391,7 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
                 
             # Connect and get data
             try:
-                data = await device_handler.connect_and_get_data(self.hass, address)
+                data = await device_handler.connect_and_get_data(address, self.hass)
                 
                 if data:
                     # Store data and mark device as available
@@ -468,7 +522,7 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
         # Connect and retrieve data
         try:
             async with async_timeout.timeout(30):  # 30 second timeout
-                data = await device_handler.async_connect_and_get_data(ble_device)
+                data = await device_handler.connect_and_get_data(ble_device)
             
             # Store the data and mark device as available
             self._device_data[device_id] = data
@@ -497,22 +551,6 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
     def device_ids(self):
         """Get list of device IDs."""
         return [config.device_id for config in self.device_configs]
-
-    def is_device_available(self, device_id: str) -> bool:
-        """Check if a device is available."""
-        return device_id in self._device_status and self._device_status[device_id]
-
-    def _is_update_due(self, device_id: str) -> bool:
-        """Check if a device is due for an update."""
-        if device_id not in self._last_update:
-            return True
-            
-        # Get the last update time
-        last_update = self._last_update.get(device_id, 0)
-        now = time.time()
-        
-        # Check if enough time has passed since the last update
-        return (now - last_update) >= self.update_interval
 
     @property
     def mac_address(self) -> str:

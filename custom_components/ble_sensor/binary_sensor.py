@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
+from custom_components.ble_sensor.devices.base import DeviceType
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -13,7 +14,7 @@ from homeassistant.components.binary_sensor import BinarySensorEntityDescription
 from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, DOMAIN
 from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
 from custom_components.ble_sensor.devices import get_device_type
-from custom_components.ble_sensor.entity import BLESensorEntity
+from custom_components.ble_sensor.entity import BaseDeviceEntity
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,29 +38,20 @@ async def async_setup_entry(
     if entities:
         async_add_entities(entities)
 
-class BLESensorBinarySensorEntity(BLESensorEntity, BinarySensorEntity):
+class BLESensorBinarySensorEntity(BaseDeviceEntity, BinarySensorEntity):
     """Binary sensor entity for BLE Sensor integration."""
 
     def __init__(
         self, 
         coordinator: BLESensorDataUpdateCoordinator, 
         description: BinarySensorEntityDescription,
+        device: DeviceType
     ) -> None:
         """Initialize the binary sensor entity."""
-        super().__init__(coordinator, description)
+        super().__init__(coordinator, description, device)
         
     @property
     def is_on(self) -> Optional[bool]:
         """Return true if the binary sensor is on."""
-        if self.coordinator.data and self._key in self.coordinator.data:
-            return bool(self.coordinator.data[self._key])
-        return None
-
-    @property
-    def available(self) -> bool:
-        """Return True if entity is available."""
-        return (
-            super().available
-            and self.coordinator.is_device_available(self._device_id)
-        )
+        return self.as_bool(self.native_value)
     

@@ -173,47 +173,76 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Error handling device data: %s", ex)
 
     async def _async_update_data(self) -> Dict[str, Any]:
-        """Update data via polling if needed."""
-        # Skip polling if device is not available or doesn't need polling
-        if not self._available or not self.device_type.requires_polling():
-            return self.device.data or {}
+        """Fetch data from all configured devices."""
+        result = {}
+        
+        # No devices configured
+        if not self.device_configs:
+            return result
             
-        try:
-            if not self.ble_connection.connected:
-                _LOGGER.debug("Device %s not connected, skipping update", self.mac_address)
-                return self.device.data or {}
-
-            # Special handling for Petkit Fountain and S-06 Soil Tester
-            if isinstance(self.device_type, (PetkitFountain, SoilTester)):
-                # Use the custom fetch method
-                data = await self.device_type.async_custom_fetch_data(self.ble_connection.client)
-                if data:
-                    self.device.update_from_data(data)
-                    self.device.available = True
-                return self.device.data or {}
+        # Try to update each device
+        for device_config in self.device_configs:
+            device_id = device_config.device_id
+            address = device_config.address
+            device_type = device_config.device_type
+            
+            # Skip devices that are not due for update yet
+            if not self._is_update_due(device_id):
+                if device_id in self._device_data:
+                    result[device_id] = self._device_data[device_id]
+                continue
                 
-            # For other devices, use the normal polling approach
-            for uuid in self.device_type.get_characteristics():
-                try:
-                    data = await self.ble_connection.read_characteristic(uuid)
-                    if data:
-                        self._handle_device_data({
-                            "characteristic": uuid,
-                            "data": data.hex(),
-                            "raw_data": data,
-                        })
-                except Exception as ex:
-                    _LOGGER.error(
-                        "Failed to read characteristic %s: %s", uuid, ex
-                    )
-                    
-            return self.device.data or {}
+            # Get the device handler
+            device_handler = self._get_device_handler(device_type)
+            if not device_handler:
+                _LOGGER.error(
+                    "No handler available for device type: %s", 
+                    device_type
+                )
+                continue
+                
+            # Get a fresh BLE device (don't reuse stored ones)
+            ble_device = bluetooth.async_ble_device_from_address(
+                self.hass, address, connectable=True
+            )
             
-        except Exception as ex:
-            self.device.available = False
-            self._available = False
-            _LOGGER.error("Error updating device data: %s", ex)
-            raise UpdateFailed(f"Error communicating with device: {ex}") from ex
+            if not ble_device:
+                _LOGGER.debug(
+                    "Device %s (%s) not currently reachable", 
+                    device_config.name, 
+                    address
+                )
+                # Mark device as unavailable
+                self._device_status[device_id] = False
+                continue
+                
+            # Connect and get data
+            try:
+                data = await device_handler.connect_and_get_data(self.hass, address)
+                
+                if data:
+                    # Store data and mark device as available
+                    self._device_data[device_id] = data
+                    self._device_status[device_id] = True
+                    result[device_id] = data
+                    
+                    # Update last successful update timestamp
+                    self._last_update[device_id] = time.time()
+                else:
+                    # No data received, mark device as unavailable
+                    self._device_status[device_id] = False
+                    
+            except Exception as ex:
+                _LOGGER.error(
+                    "Error updating device %s (%s): %s",
+                    device_config.name,
+                    address,
+                    str(ex),
+                )
+                # Mark device as unavailable on error
+                self._device_status[device_id] = False
+                
+        return result
             
 
     @callback
@@ -226,12 +255,17 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
             service_info.address,
             service_info.advertisement.rssi
         )
-        
-        # Store the service info for the device
+
+        if not hasattr(self, '_devices_info'):
+            self._devices_info = {}
         self._devices_info[device_id] = service_info
         
-        # Schedule an update for this device
-        self.async_update_device(device_id)
+        # Mark the device as potentially available
+        # The actual status will be determined during actual connection
+        if device_id in self._device_status and not self._device_status[device_id]:
+            # Only schedule an update if the device was previously unavailable
+            # and is now seen again
+            self._schedule_update_for_device(device_id)
     
     @callback
     def device_unavailable(self, service_info: BluetoothServiceInfoBleak, device_id: str) -> None:
@@ -250,6 +284,37 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
             if self._pending_updates[device_id] is not None:
                 self._pending_updates[device_id].cancel()
             self._pending_updates[device_id] = None
+
+    def _schedule_update_for_device(self, device_id):
+        """Schedule an update for a specific device."""
+        # Cancel any existing update for this device
+        if device_id in self._pending_updates and self._pending_updates[device_id]:
+            self._pending_updates[device_id].cancel()
+        
+        # Schedule a new update
+        self._pending_updates[device_id] = asyncio.create_task(
+            self._update_device(device_id)
+        )
+
+    async def _update_device(self, device_id):
+        """Update a specific device."""
+        # Find the device config
+        device_config = next(
+            (d for d in self.device_configs if d.device_id == device_id), 
+            None
+        )
+        if not device_config:
+            return
+            
+        # Connect and update
+        try:
+            await self._async_update_data()
+        except Exception as ex:
+            _LOGGER.error(
+                "Error updating device %s: %s", 
+                device_id, 
+                str(ex)
+            )
     
     async def async_update_device(self, device_id: str) -> None:
         """Update data from a specific device."""

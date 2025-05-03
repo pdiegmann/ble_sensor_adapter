@@ -15,6 +15,7 @@ from homeassistant.components.bluetooth import (
     async_ble_device_from_address,
     async_register_callback,
     async_track_unavailable,
+    async_scanner_count,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -79,6 +80,11 @@ class BLEConnection:
                 
         # Register for bluetooth callbacks with both passive and active scanning
         for mode in [BluetoothScanningMode.PASSIVE, BluetoothScanningMode.ACTIVE]:
+            # Check if we have any scanners for this mode
+            scanner_count = await async_scanner_count(self.hass, mode)
+            if scanner_count == 0 and mode == BluetoothScanningMode.ACTIVE:
+                _LOGGER.debug("No active scanner available, device may not be discoverable")
+                
             unsubscribe = async_register_callback(
                 self.hass,
                 _async_device_callback,

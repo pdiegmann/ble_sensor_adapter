@@ -125,10 +125,7 @@ class DeviceType(ABC):
         for task in self._cleanup_tasks:
             if not task.done():
                 task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    pass
+        await asyncio.gather(self._cleanup_tasks)
                 
         self._cleanup_tasks.clear()
         self._is_initialized = False

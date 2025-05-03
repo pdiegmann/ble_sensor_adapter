@@ -81,7 +81,7 @@ class BLEConnection:
         # Register for bluetooth callbacks with both passive and active scanning
         for mode in [BluetoothScanningMode.PASSIVE, BluetoothScanningMode.ACTIVE]:
             # Check if we have any scanners for this mode
-            scanner_count = await async_scanner_count(self.hass, mode)
+            scanner_count = async_scanner_count(self.hass, mode)
             if scanner_count == 0 and mode == BluetoothScanningMode.ACTIVE:
                 _LOGGER.debug("No active scanner available, device may not be discoverable")
                 

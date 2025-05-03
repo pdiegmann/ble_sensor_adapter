@@ -29,9 +29,9 @@ async def async_get_config_entry_diagnostics(
     mac_address = entry.data[CONF_MAC].lower()
     
     # Get Bluetooth environment information
-    scanner_count = await async_scanner_count(hass)
-    active_scanners = await async_scanner_count(hass, BluetoothScanningMode.ACTIVE)
-    passive_scanners = await async_scanner_count(hass, BluetoothScanningMode.PASSIVE)
+    scanner_count = async_scanner_count(hass)
+    active_scanners = async_scanner_count(hass, BluetoothScanningMode.ACTIVE)
+    passive_scanners = async_scanner_count(hass, BluetoothScanningMode.PASSIVE)
     
     bluetooth_info = {
         "scanner_available": bool(scanner_count),

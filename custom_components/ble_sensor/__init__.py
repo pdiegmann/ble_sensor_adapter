@@ -23,12 +23,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     logging.getLogger(DOMAIN).setLevel(getattr(logging, log_level.upper()))
     
     # Check if Bluetooth integration is available
-    if not bluetooth.async_scanner_count(hass, connectable=True):
-        _LOGGER.error(
-            "No connectable Bluetooth adapters found. This integration requires "
-            "at least one Bluetooth adapter that can connect to devices"
-        )
-        raise ConfigEntryNotReady("No connectable Bluetooth adapters found")
+    # if not bluetooth.async_scanner_count(hass, connectable=True):
+    #     _LOGGER.error(
+    #         "No connectable Bluetooth adapters found. This integration requires "
+    #         "at least one Bluetooth adapter that can connect to devices"
+    #     )
+    #     raise ConfigEntryNotReady("No connectable Bluetooth adapters found")
     
     # Store the config entry in HASS data
     hass.data[DOMAIN][entry.entry_id] = entry.data

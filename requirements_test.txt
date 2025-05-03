@@ -1,8 +1,17 @@
-pytest-homeassistant-custom-component==0.13.193
+pytest-homeassistant-custom-component>=0.13.205
 
 # BLE monitor requirements
-pycryptodomex==3.21.0
-janus==2.0.0
-aioblescan==0.2.14
-btsocket==0.3.0
-pyric==0.1.6.3
+pycryptodomex>=3.21.0
+janus>=2.0.0
+aioblescan>=0.2.14
+btsocket>=0.3.0
+pyric>=0.1.6.3
+
+pytest>=8.3.5
+pytest-cov>=4.1.0
+pytest-asyncio>=0.23.5
+homeassistant>=2024.12.5
+bleak>=0.22.3
+bleak-retry-connector>=3.10.0
+voluptuous>=0.15.2
+pyserial>=3.5

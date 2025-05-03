@@ -1,0 +1,127 @@
+Metadata-Version: 2.4
+Name: ble_sensor
+Version: 0.1.0
+Summary: BLE Sensor integration for Home Assistant
+Author: Phil Hennel
+Requires-Python: >=3.12.0
+Description-Content-Type: text/markdown
+Requires-Dist: bleak-retry-connector>=3.10.0
+Requires-Dist: bleak>=0.22.3
+Requires-Dist: homeassistant>=2024.12.5
+Requires-Dist: voluptuous>=0.15.2
+Requires-Dist: pytest==8.3.4
+
+# Home Assistant BLE Scanner Component (Active Connection)
+
+This custom component for Home Assistant allows you to monitor various Bluetooth Low Energy (BLE) devices by **actively connecting** to them to retrieve data. It is designed to be configurable, allowing you to specify which devices to track and how often to attempt connection and data retrieval. The component uses different connection and parsing strategies based on the configured device type.
+
+## Features
+
+*   Actively connects to configured BLE devices to retrieve data.
+*   Supports multiple device types with dedicated connection handlers (`petkit-fountain`, `s-06-soil-tester`).
+*   Configurable via the Home Assistant UI (Integrations page).
+*   Configure devices using either their BLE MAC address or advertised name.
+*   Set custom polling intervals per device.
+*   Adjustable log level for debugging.
+*   Creates sensor entities for parsed data points (e.g., temperature, humidity, battery level, etc., depending on the device type and parser implementation).
+*   Handles device availability based on recent sightings.
+*   Graceful error handling for Bluetooth issues and parsing errors.
+
+## Installation
+
+There are two main ways to install this custom component:
+
+**1. Using HACS (Home Assistant Community Store) - Recommended**
+
+*   Ensure HACS is installed and configured in your Home Assistant instance.
+*   Navigate to HACS -> Integrations.
+*   Click the three dots in the top right corner and select "Custom repositories".
+*   Enter the URL of this repository (replace `your_username/ha-ble-scanner` with the actual URL if you host it on GitHub/GitLab): `https://github.com/your_username/ha-ble-scanner`
+*   Select "Integration" as the category.
+*   Click "Add".
+*   The "BLE Scanner" integration should now appear in the HACS list. Click "Install".
+*   Follow the prompts to install the integration.
+*   Restart Home Assistant.
+
+**2. Manual Installation**
+
+*   Download the latest release archive (or clone the repository).
+*   Copy the `custom_components/ble_scanner` directory into your Home Assistant configuration directory (`<config>/custom_components/`). Create the `custom_components` directory if it doesn't exist.
+    <config>/
+    └── custom_components/
+        └── ble_scanner/
+            ├── __init__.py
+            ├── manifest.json
+            ├── config_flow.py
+            ├── const.py
+            ├── sensor.py
+            ├── coordinator.py
+            ├── errors.py
+            └── devices/           # <--- Changed from parsers/
+                ├── __init__.py
+                ├── base.py
+                ├── petkit_fountain.py
+                └── s_06_soil_tester.py
+*   Restart Home Assistant.
+
+## Configuration
+
+Configuration is handled entirely through the Home Assistant UI.
+
+1.  Go to **Settings** -> **Devices & Services**.
+2.  Click the **+ Add Integration** button.
+3.  Search for "BLE Scanner" and select it.
+4.  **Initial Setup:** You will be asked to configure the desired log level for the integration (e.g., `info`, `debug`). Click **Submit**.
+5.  **Device Configuration:** After the initial setup, the integration will be added but likely show an error or warning if no devices are configured. Click on the newly added "BLE Scanner" integration card and select **Configure**.
+6.  You will see a menu:
+    *   **Configure Global Settings:** Allows you to change the log level set during initial setup.
+    *   **Configure Devices:** Manage the list of BLE devices to monitor.
+7.  Select **Configure Devices**.
+8.  You will see another menu:
+    *   **Add Device:** Add a new BLE device to monitor.
+    *   **Remove Device:** Remove an existing device.
+9.  Select **Add Device**.
+10. Fill in the device details:
+    *   **Name:** A friendly name for the device in Home Assistant (Required).
+    *   **Address:** The BLE MAC address of the device (Optional if Name is unique and discoverable).
+    *   **Type:** Select the device type from the dropdown (e.g., `petkit-fountain`, `s-06-soil-tester`) (Required).
+    *   **Polling Interval:** How often (in seconds) the coordinator should attempt to connect and update data for this device. The actual update interval for the coordinator is determined by the minimum polling interval across all devices (minimum 30 seconds due to connection overhead). Default is 300 seconds (5 minutes).
+11. Click **Submit**.
+12. Repeat steps 9-11 to add more devices.
+13. Use the **Remove Device** option if you need to delete a previously configured device.
+
+## Supported Devices
+
+This component uses active BLE connections to retrieve data from the following devices:
+
+*   **petkit-fountain:** Connects to the fountain, performs the necessary initialization sequence, and retrieves detailed status information.
+    *   Sensors: Power Status, Mode, Warning Breakdown, Warning Water Missing, Warning Filter, Pump Runtime (s), Filter Remaining (%), Running Status, DND State, Battery (%), RSSI.
+*   **s-06-soil-tester:** Connects to the sensor and reads the characteristic data based on the Efento BLE format.
+    *   Sensors: Temperature (°C), Humidity (%), Pressure (hPa), Battery (%), RSSI.
+
+For each configured device, the integration will create several sensor entities based on the data successfully parsed by the corresponding device type parser.
+
+Common entities include:
+
+*   **RSSI Sensor:** Signal strength of the last received advertisement (disabled by default).
+
+Device-specific sensors depend on the parser implementation (see examples in "Supported Devices").
+
+## Error Handling
+
+The component attempts to handle common issues:
+
+*   **Device Not Found:** If a configured device isn't detected within a reasonable timeout period (based on its polling interval), its sensors will become unavailable.
+*   **Bluetooth Errors:** Logs errors from the underlying Bluetooth library (`bleak`).
+*   **Parsing Errors:** Logs errors if the data received from a device cannot be parsed correctly according to the device type's parser.
+
+Check the Home Assistant logs (Settings -> System -> Logs) for detailed messages, especially if you set the log level to `debug` during configuration.
+
+## Contributing
+
+Contributions are welcome! If you add support for new devices or improve existing parsers, please consider submitting a pull request to the repository.
+
+## Disclaimer
+
+This is a custom component and may have bugs. Use at your own risk. Ensure your Bluetooth adapter is supported by the underlying `bleak` library on your Home Assistant operating system.
+

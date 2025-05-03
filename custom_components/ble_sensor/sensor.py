@@ -21,8 +21,8 @@ from custom_components.ble_sensor.utils.const import (
     CONF_POLL_INTERVAL,
     DEFAULT_POLL_INTERVAL,
 )
-from .coordinator import BLESensorAdapterCoordinator
-from .devices import get_device_instance
+from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
+from custom_components.ble_sensor.devices import get_device_type
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,13 +59,13 @@ async def async_setup_entry(
             continue
         
         # Create the device-specific instance
-        device_instance = get_device_instance(device_type, address, name)
+        device_instance = get_device_type(device_type, address, name)
         if not device_instance:
             _LOGGER.error("Invalid device type: %s", device_type)
             continue
         
         # Create coordinator
-        coordinator = BLESensorAdapterCoordinator(
+        coordinator = BLESensorDataUpdateCoordinator(
             hass,
             _LOGGER,
             ble_device,
@@ -118,7 +118,7 @@ class BLESensorAdapterSensor(CoordinatorEntity, SensorEntity):
 
     def __init__(
         self,
-        coordinator: BLESensorAdapterCoordinator,
+        coordinator: BLESensorDataUpdateCoordinator,
         device: Any,
         key: str,
         name: str,

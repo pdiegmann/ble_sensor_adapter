@@ -106,10 +106,6 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator[dict[str, DeviceType]
         # Ensure minimum interval is at least 30 seconds to avoid overwhelming
         return timedelta(seconds=max(min_interval, 30))
         
-    def _get_device_handler(self, device_type: str):
-        """Get the device handler for the specified device type."""
-        return get_device_type(device_type)
-        
     def _is_update_due(self, device_id: str) -> bool:
         """Determine if a device is due for an update."""
         device_config = next(
@@ -366,7 +362,7 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator[dict[str, DeviceType]
                 continue
                 
             # Get the device handler
-            device_handler = self._get_device_handler(device_type)
+            device_handler = get_device_type(device_type)
             if not device_handler:
                 _LOGGER.error(
                     "No handler available for device type: %s", 
@@ -514,7 +510,7 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator[dict[str, DeviceType]
             return
         
         # Get the appropriate device handler
-        device_handler = self._get_device_handler(device_config.device_type)
+        device_handler = get_device_type(device_config.device_type)
         if not device_handler:
             self._logger.error("No handler for device type: %s", device_config.device_type)
             return

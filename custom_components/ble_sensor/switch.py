@@ -85,4 +85,12 @@ class BLESwitchEntity(BLESensorEntity, SwitchEntity):
                 self.coordinator.ble_connection.client, False
             )
         await self.coordinator.async_request_refresh()
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return (
+            super().available
+            and self.coordinator.is_device_available(self._device_id)
+        )
         

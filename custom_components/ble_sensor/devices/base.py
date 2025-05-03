@@ -2,7 +2,8 @@
 from abc import ABC, abstractmethod
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+from bleak_retry_connector import establish_connection
 
 from bleak import BleakClient
 
@@ -155,4 +156,30 @@ class DeviceType(ABC):
         task = asyncio.create_task(coro)
         self._cleanup_tasks.append(task)
         task.add_done_callback(self._cleanup_tasks.remove)
+
+    async def async_connect_and_get_data(self, ble_device):
+        """Connect to device and retrieve data with retry logic."""
+        try:
+            client = await establish_connection(
+                client_class=BleakClient,
+                device=ble_device,
+                name=ble_device.address,
+                timeout=10.0  # Use at least 10 second timeout
+            )
+            
+            try:
+                # Your existing device-specific connection and data retrieval
+                return await self._get_data(client)
+            finally:
+                # Always disconnect when done
+                await client.disconnect()
+                
+        except Exception as e:
+            # Log error and re-raise
+            _LOGGER.error("Error connecting to %s: %s", ble_device.address, str(e))
+            raise
+    
+    @abstractmethod
+    async def _get_data(self, client):
+        pass
         

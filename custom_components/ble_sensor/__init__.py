@@ -1,5 +1,6 @@
 """The BLE Sensor Adapter integration."""
 import logging
+from habluetooth import BluetoothScanningMode
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
@@ -9,6 +10,7 @@ from homeassistant.const import Platform
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 
+from custom_components.ble_sensor import coordinator
 from custom_components.ble_sensor.utils.const import DOMAIN, CONF_LOG_LEVEL
 
 _LOGGER = logging.getLogger(__name__)
@@ -39,7 +41,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Set up entry update listener
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
     
+    for device_config in coordinator.device_configs:
+        address = device_config.address
+        # Register to receive callbacks when this device is discovered
+        entry.async_on_unload(
+            bluetooth.async_register_callback(
+                hass,
+                lambda service_info, change: coordinator.device_discovered(
+                    service_info, device_config.device_id, change
+                ),
+                {"address": address},
+                BluetoothScanningMode.ACTIVE
+            )
+        )
+        
+        # Track when devices go unavailable
+        entry.async_on_unload(
+            bluetooth.async_track_unavailable(
+                hass,
+                lambda service_info: coordinator.device_unavailable(
+                    service_info, device_config.device_id
+                ),
+                address,
+                connectable=True
+            )
+        )
+    
     return True
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""

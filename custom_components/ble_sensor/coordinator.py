@@ -18,6 +18,12 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from custom_components.ble_sensor.devices.petkit_fountain import PetkitFountain
 from custom_components.ble_sensor.devices.soil_tester import SoilTester
 
+from homeassistant.components import bluetooth
+from homeassistant.components.bluetooth import BluetoothServiceInfoBleak, BluetoothChange
+from bleak.exc import BleakError
+from homeassistant.core import callback
+import async_timeout
+
 from custom_components.ble_sensor.utils.bluetooth import BLEConnection
 from custom_components.ble_sensor.utils.const import (
     CONF_DEVICE_TYPE,
@@ -209,3 +215,88 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Error updating device data: %s", ex)
             raise UpdateFailed(f"Error communicating with device: {ex}") from ex
             
+
+    @callback
+    def device_discovered(self, service_info: BluetoothServiceInfoBleak, device_id: str, change: BluetoothChange) -> None:
+        """Handle a discovered device."""
+        # Log the discovery
+        self._logger.debug(
+            "Device %s discovered: %s (RSSI: %d)",
+            device_id,
+            service_info.address,
+            service_info.advertisement.rssi
+        )
+        
+        # Store the service info for the device
+        self._devices_info[device_id] = service_info
+        
+        # Schedule an update for this device
+        self.async_update_device(device_id)
+    
+    @callback
+    def device_unavailable(self, service_info: BluetoothServiceInfoBleak, device_id: str) -> None:
+        """Handle a device becoming unavailable."""
+        self._logger.debug("Device %s unavailable: %s", device_id, service_info.address)
+        
+        # Mark the device as unavailable in your system
+        if device_id in self._device_status:
+            self._device_status[device_id] = False
+        
+        # Notify entities that depend on this device
+        self.async_update_listeners()
+    
+    async def async_update_device(self, device_id: str) -> None:
+        """Update data from a specific device."""
+        if device_id not in self._devices_info:
+            self._logger.warning("Tried to update unknown device: %s", device_id)
+            return
+        
+        # Get the device config and service info
+        device_config = next((d for d in self.device_configs if d.device_id == device_id), None)
+        if not device_config:
+            return
+            
+        service_info = self._devices_info[device_id]
+        
+        # Get a connectable BLE device
+        ble_device = bluetooth.async_ble_device_from_address(
+            self.hass, service_info.address, connectable=True
+        )
+        
+        if not ble_device:
+            self._logger.warning(
+                "No connectable device found for %s", service_info.address
+            )
+            return
+        
+        # Get the appropriate device handler
+        device_handler = self._get_device_handler(device_config.device_type)
+        if not device_handler:
+            self._logger.error("No handler for device type: %s", device_config.device_type)
+            return
+        
+        # Connect and retrieve data
+        try:
+            async with async_timeout.timeout(30):  # 30 second timeout
+                data = await device_handler.async_connect_and_get_data(ble_device)
+            
+            # Store the data and mark device as available
+            self._device_data[device_id] = data
+            self._device_status[device_id] = True
+            
+            # Update all listeners
+            self.async_update_listeners()
+            
+        except (BleakError, TimeoutError, Exception) as error:
+            self._logger.error(
+                "Error connecting to %s (%s): %s",
+                device_config.name,
+                service_info.address,
+                str(error),
+            )
+    
+    # Update your existing async_update method to use the new per-device update function
+    async def async_update(self):
+        """Fetch all data from devices."""
+        for device_id in self._device_ids:
+            await self.async_update_device(device_id)

@@ -5,7 +5,9 @@ import logging
 import re
 from typing import Any, Dict, Optional
 
+from homeassistant.components import bluetooth
 import voluptuous as vol
+
 
 from homeassistant import config_entries
 from homeassistant.components.bluetooth import async_discovered_service_info

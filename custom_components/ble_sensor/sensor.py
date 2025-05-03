@@ -199,3 +199,11 @@ class BLESensorAdapterSensor(CoordinatorEntity, SensorEntity):
         
         # Update state immediately when added to hass
         self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return (
+            super().available
+            and self.coordinator.is_device_available(self._device_id)
+        )

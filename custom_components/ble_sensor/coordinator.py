@@ -19,8 +19,7 @@ from homeassistant.helpers.dispatcher import (
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from homeassistant.components import bluetooth
-from homeassistant.components.bluetooth import BluetoothServiceInfoBleak, BluetoothChange
+from homeassistant.components.bluetooth import async_ble_device_from_address
 from bleak.exc import BleakError
 import async_timeout
 
@@ -112,7 +111,7 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, DeviceType]]):
                 continue
                 
             # Get a fresh BLE device (don't reuse stored ones)
-            ble_device = bluetooth.async_ble_device_from_address(
+            ble_device = async_ble_device_from_address(
                 self.hass, address, connectable=True
             )
             
@@ -446,7 +445,7 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, DeviceType]]):
     #     service_info = self._devices_info[device_id]
         
     #     # Get a connectable BLE device
-    #     ble_device = bluetooth.async_ble_device_from_address(
+    #     ble_device = async_ble_device_from_address(
     #         self.hass, service_info.address, connectable=True
     #     )
         

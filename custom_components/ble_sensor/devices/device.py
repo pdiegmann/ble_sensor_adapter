@@ -5,7 +5,8 @@ import logging
 from typing import Any, Dict, Optional
 
 from homeassistant.core import HomeAssistant
-from custom_components.ble_sensor.utils import bluetooth
+from homeassistant.components import bluetooth
+from homeassistant.components.bluetooth import async_ble_device_from_address
 
 from custom_components.ble_sensor.utils.const import DOMAIN
 
@@ -14,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 async def async_get_ble_device(hass: HomeAssistant, address: str) -> Optional[BLEDevice]:
     """Get a BLE device by address."""
     # Try to find the device in already discovered devices
-    ble_device = bluetooth.async_ble_device_from_address(hass, address, connectable=True)
+    ble_device = async_ble_device_from_address(hass, address, connectable=True)
     if ble_device:
         return ble_device
     

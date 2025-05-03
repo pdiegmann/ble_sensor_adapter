@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Type, Union, overload
 from bleak_retry_connector import establish_connection
 
 from custom_components.ble_sensor.utils.const import CONF_ADDRESS, CONF_MAC, CONF_TYPE, DOMAIN
+from homeassistant.components.bluetooth import async_ble_device_from_address
 from homeassistant.components.binary_sensor import BinarySensorEntityDescription
 from homeassistant.components.select import SelectEntityDescription
 from homeassistant.components.sensor import SensorEntityDescription
@@ -96,7 +97,7 @@ class DeviceType(ABC):
         if ble_device is None:
             if address is None:
                 raise ValueError("Need either device or address!")
-            ble_device = bluetooth.async_ble_device_from_address(hass or self.hass, address, connectable=True)
+            ble_device = async_ble_device_from_address(hass or self.hass, address, connectable=True)
         data = {}
         services = self.get_services()
         if services and len(services) > 0:

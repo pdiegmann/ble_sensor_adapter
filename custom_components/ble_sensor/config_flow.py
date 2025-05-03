@@ -10,7 +10,7 @@ import voluptuous as vol
 
 
 from homeassistant import config_entries
-from homeassistant.components.bluetooth import async_discovered_service_info
+from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth.models import BluetoothServiceInfoBleak
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
@@ -166,7 +166,7 @@ class BLESensorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Return schema for the user form."""
         discovered_devices = {
             info.address: f"{info.name} ({info.address})"
-            for info in async_discovered_service_info(self.hass)
+            for info in bluetooth.async_discovered_service_info(self.hass)
             if info.connectable
         }
         

@@ -43,7 +43,7 @@ def mock_bluetooth(hass):
          patch("homeassistant.components.bluetooth.async_scanner_count") as mock_scanner_count, \
          patch("habluetooth.BluetoothManager") as mock_bt_manager, \
          patch("homeassistant.components.bluetooth.api._get_manager", return_value=MagicMock()), \
-         patch("homeassistant.components.bluetooth.async_ble_device_from_address", return_value=MagicMock()):
+         patch("homeassistant.components.async_ble_device_from_address", return_value=MagicMock()):
             
         mock_scanner_count.return_value = 1
         mock_scanner.return_value.discovered_devices = []

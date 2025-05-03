@@ -6,10 +6,10 @@ from typing import Any, Dict
 import time
 
 from homeassistant.components.diagnostics import async_redact_data
+from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import (
     async_scanner_count,
     BluetoothScanningMode,
-    async_discovered_service_info,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_MAC
@@ -57,7 +57,7 @@ async def async_get_config_entry_diagnostics(
                 "local_name": info.name,
             }
         }
-        for info in async_discovered_service_info(hass)
+        for info in bluetooth.async_discovered_service_info(hass)
         if info.address.lower() == mac_address
     }
     

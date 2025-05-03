@@ -1,9 +1,20 @@
 """Test configuration for ble_sensor."""
 from unittest.mock import MagicMock, patch
 import pytest
+from dataclasses import dataclass, field
+from typing import Any, Dict
 
 from homeassistant.const import CONF_MAC, CONF_NAME
 from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, DOMAIN
+
+@dataclass
+class MockConfigEntry:
+    """Mock config entry."""
+    domain: str
+    data: Dict[str, Any]
+    entry_id: str = "test_entry_id"
+    title: str = "Test Device"
+    options: Dict[str, Any] = field(default_factory=dict)
 
 @pytest.fixture
 def hass_mock():
@@ -28,11 +39,11 @@ def mock_bleak():
 @pytest.fixture
 def mock_config_entry():
     """Mock config entry."""
-    return {
-        "domain": DOMAIN,
-        "data": {
+    return MockConfigEntry(
+        domain=DOMAIN,
+        data={
             CONF_MAC: "00:11:22:33:44:55",
             CONF_DEVICE_TYPE: "petkit_fountain",
             CONF_NAME: "Test Device"
         }
-    }
+    )

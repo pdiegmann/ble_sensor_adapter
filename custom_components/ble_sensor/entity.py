@@ -29,6 +29,7 @@ class BLESensorEntity(CoordinatorEntity[BLESensorDataUpdateCoordinator], Entity)
         
         self.entity_description = description
         self._key = description.key
+        self._device_id = coordinator.mac_address  # Add this line
         self._attr_unique_id = f"{coordinator.device.unique_id}_{description.key}"
         self._attr_name = description.name
 

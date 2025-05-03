@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -40,6 +41,16 @@ from custom_components.ble_sensor.devices import get_device_type
 
 _LOGGER = logging.getLogger(__name__)
 
+class DeviceConfig:
+    """Device configuration class."""
+
+    def __init__(self, device_id: str, name: str, address: str, device_type: str):
+        """Initialize device config."""
+        self.device_id = device_id
+        self.name = name
+        self.address = address
+        self.device_type = device_type
+
 class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching BLE Sensor data."""
 
@@ -48,6 +59,7 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
         self.hass = hass
         self.entry = entry
         self.entry_id = entry.entry_id
+        self.domain = DOMAIN
         
         # Extract configuration
         self.mac_address = entry.data[CONF_MAC]
@@ -64,10 +76,20 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Failed to create device type: %s", ex)
             raise ConfigEntryNotReady from ex
         
-        # Initialize BLE connection
-        self.ble_connection = BLEConnection(
-            hass, self.mac_address, self.entry_id, self._handle_device_data
-        )
+        # Initialize device tracking
+        self.device_configs = [
+            DeviceConfig(
+                device_id=f"ble_sensor_{self.mac_address}",
+                name=entry.title,
+                address=self.mac_address,
+                device_type=self.device_type_name
+            )
+        ]
+        self._device_data = {}
+        self._device_status = {}
+        self._devices_info = {}
+        self._pending_updates = {}
+        self._last_update = {}
         
         # Set polling interval with a minimum of 30 seconds to prevent excessive connections
         update_interval = timedelta(seconds=max(30, self.poll_interval))
@@ -79,10 +101,19 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
             update_interval=update_interval if self.device_type.requires_polling() else None,
         )
         
+        # Initialize BLE connection
+        self.ble_connection = BLEConnection(
+            hass, self.mac_address, self.entry_id, self._handle_device_data
+        )
+        
         self._available = False
         self._handlers = []
         self._initialization_lock = asyncio.Lock()
         self._initialization_complete = False
+
+    def _get_device_handler(self, device_type: str):
+        """Get the appropriate device handler."""
+        return get_device_type(device_type)
 
     async def async_start(self) -> None:
         """Start the coordinator."""
@@ -366,8 +397,31 @@ class BLESensorDataUpdateCoordinator(DataUpdateCoordinator):
                 str(error),
             )
     
-    # Update your existing async_update method to use the new per-device update function
     async def async_update(self):
-        """Fetch all data from devices."""
-        for device_id in self._device_ids:
-            await self.async_update_device(device_id)
+        """Fetch data from all configured devices."""
+        try:
+            return await self._async_update_data()
+        except Exception as ex:
+            _LOGGER.error("Error updating data: %s", ex)
+            raise UpdateFailed(f"Error updating data: {ex}")
+            
+    @property
+    def device_ids(self):
+        """Get list of device IDs."""
+        return [config.device_id for config in self.device_configs]
+
+    def is_device_available(self, device_id: str) -> bool:
+        """Check if a device is available."""
+        return device_id in self._device_status and self._device_status[device_id]
+
+    def _is_update_due(self, device_id: str) -> bool:
+        """Check if a device is due for an update."""
+        if device_id not in self._last_update:
+            return True
+            
+        # Get the last update time
+        last_update = self._last_update.get(device_id, 0)
+        now = time.time()
+        
+        # Check if enough time has passed since the last update
+        return (now - last_update) >= self.poll_interval

@@ -3,7 +3,7 @@ Name: ble_sensor
 Version: 0.1.0
 Summary: BLE Sensor integration for Home Assistant
 Author: Phil Hennel
-Requires-Python: >=3.12.0
+Requires-Python: >=3.13.0
 Description-Content-Type: text/markdown
 Requires-Dist: bleak-retry-connector>=3.10.0
 Requires-Dist: bleak>=0.22.3
@@ -11,6 +11,15 @@ Requires-Dist: homeassistant>=2024.12.5
 Requires-Dist: voluptuous>=0.15.2
 Requires-Dist: pytest==8.3.4
 Requires-Dist: pyserial>=3.5
+Requires-Dist: pytest-homeassistant-custom-component>=0.13.206
+Requires-Dist: pycryptodomex>=3.21.0
+Requires-Dist: janus>=2.0.0
+Requires-Dist: aioblescan>=0.2.14
+Requires-Dist: btsocket>=0.3.0
+Requires-Dist: pyric>=0.1.6.3
+Requires-Dist: pytest-cov>=4.1.0
+Requires-Dist: pytest-asyncio>=0.23.5
+Requires-Dist: aiousbwatcher>=0.1.0
 
 # Home Assistant BLE Scanner Component (Active Connection)
 

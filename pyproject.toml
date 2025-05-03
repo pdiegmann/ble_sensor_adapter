@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "BLE Sensor integration for Home Assistant"
 readme = "README.md"
 authors = [{ name = "Phil Hennel" }]
-requires-python = ">=3.12.0"
+requires-python = ">=3.13.0"
 dependencies = [
     "bleak-retry-connector>=3.10.0",
     "bleak>=0.22.3",
@@ -16,6 +16,15 @@ dependencies = [
     "voluptuous>=0.15.2",
     "pytest==8.3.4",
     "pyserial>=3.5",
+    "pytest-homeassistant-custom-component>=0.13.206",
+    "pycryptodomex>=3.21.0",
+    "janus>=2.0.0",
+    "aioblescan>=0.2.14",
+    "btsocket>=0.3.0",
+    "pyric>=0.1.6.3",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.5",
+    "aiousbwatcher>=0.1.0",
 ]
 
 [tool.pytest.ini_options]
@@ -23,3 +32,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 pythonpath = ["."]
 addopts = "-v --cov=custom_components.ble_sensor --cov-report=term-missing"
+pytest_asyncio_mode = "auto"
+markers = [
+    "asyncio: mark a test as an async test"
+]

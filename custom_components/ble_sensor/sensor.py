@@ -132,6 +132,7 @@ class BLESensorAdapterSensor(CoordinatorEntity, SensorEntity):
         
         self._device = device
         self._key = key
+        self._device_id = device.address  # Add this line
         self._attr_name = f"{device.name} {name}"
         self._attr_unique_id = f"{DOMAIN}_{device.address}_{key}"
         

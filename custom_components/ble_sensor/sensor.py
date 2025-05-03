@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 from bleak.backends.device import BLEDevice
 
 from custom_components.ble_sensor.devices.base import DeviceType
+from custom_components.ble_sensor.entity import BaseDeviceEntity
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -104,7 +105,7 @@ async def async_get_ble_device(hass: HomeAssistant, address: str) -> Optional[BL
         _LOGGER.error("Error scanning for device %s: %s", address, str(ex))
         return None
 
-class BLESensorAdapterSensor(DeviceType, SensorEntity):
+class BLESensorAdapterSensor(BaseDeviceEntity, SensorEntity):
     """BLE Sensor Adapter sensor entity."""
 
     def __init__(

@@ -5,7 +5,7 @@ import asyncio
 import logging
 from typing import Any, Callable, Optional, Dict
 
-from bleak import BleakClient, BleakScanner, BleakError
+from bleak import BleakClient, BleakError
 from bleak.backends.device import BLEDevice
 
 from homeassistant.components.bluetooth import (
@@ -15,7 +15,6 @@ from homeassistant.components.bluetooth import (
     async_ble_device_from_address,
     async_register_callback,
     async_track_unavailable,
-    async_get_scanner,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send

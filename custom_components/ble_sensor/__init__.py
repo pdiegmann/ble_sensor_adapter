@@ -9,7 +9,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.components.bluetooth import (
-    async_get_scanner,
     async_scanner_count,
     BluetoothChange,
     BluetoothScanningMode,

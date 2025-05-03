@@ -7,7 +7,6 @@ import time
 
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.components.bluetooth import (
-    async_get_scanner,
     async_scanner_count,
     BluetoothScanningMode,
     async_discovered_service_info,
@@ -31,7 +30,7 @@ async def async_get_config_entry_diagnostics(
     
     # Get Bluetooth environment information
     bluetooth_info = {
-        "scanner_available": bool(await async_get_scanner(hass)),
+        "scanner_available": bool(await async_scanner_count(hass)),
         "active_scanners": async_scanner_count(hass, BluetoothScanningMode.ACTIVE),
         "passive_scanners": async_scanner_count(hass, BluetoothScanningMode.PASSIVE),
     }

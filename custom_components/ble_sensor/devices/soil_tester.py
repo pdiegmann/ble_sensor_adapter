@@ -31,7 +31,7 @@ from custom_components.ble_sensor.utils.const import (
     KEY_S06_PRESSURE,
     KEY_S06_BATTERY,
 )
-from custom_components.ble_sensor.devices.device_types.base import BaseDeviceData, DeviceType
+from custom_components.ble_sensor.devices.base import BaseDeviceData, DeviceType
 
 _LOGGER = logging.getLogger(__name__)
 

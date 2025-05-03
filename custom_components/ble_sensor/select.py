@@ -4,7 +4,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
 from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, DOMAIN
-from custom_components.ble_sensor.devices.device_types import get_device_type
+from custom_components.ble_sensor.devices import get_device_type
 from custom_components.ble_sensor.utils.const import KEY_PF_MODE
 from homeassistant.components.select import SelectEntity
 

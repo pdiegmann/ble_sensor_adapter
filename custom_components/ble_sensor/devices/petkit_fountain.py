@@ -47,7 +47,7 @@ from custom_components.ble_sensor.utils.const import (
     KEY_PF_FILTER_PERCENT,
     KEY_PF_RUNNING_STATUS,
 )
-from custom_components.ble_sensor.devices.device_types.base import BaseDeviceData, DeviceType
+from custom_components.ble_sensor.devices.base import BaseDeviceData, DeviceType
 
 _LOGGER = logging.getLogger(__name__)
 

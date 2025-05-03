@@ -15,8 +15,8 @@ from homeassistant.helpers.dispatcher import (
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from custom_components.ble_sensor.devices.petkit_fountain import PetkitFountain
-from custom_components.ble_sensor.devices.soil_tester import SoilTester
+from custom_components.ble_sensor.devices.device_types.petkit_fountain import PetkitFountain
+from custom_components.ble_sensor.devices.device_types.soil_tester import SoilTester
 
 from custom_components.ble_sensor.utils.bluetooth import BLEConnection
 from custom_components.ble_sensor.utils.const import (

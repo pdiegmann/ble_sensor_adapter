@@ -1,10 +1,11 @@
 import logging
 from custom_components.ble_sensor.devices.base import DeviceType
+from custom_components.ble_sensor.devices.device import async_get_ble_device
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from custom_components.ble_sensor.coordinator import BLESensorCoordinator
-from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, DOMAIN
+from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, CONF_MAC, DOMAIN
 from custom_components.ble_sensor.devices import get_device_type
 from custom_components.ble_sensor.utils.const import KEY_PF_MODE
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
@@ -23,14 +24,15 @@ async def async_setup_entry(
     
     # Get device type
     device_type = get_device_type(entry.data[CONF_DEVICE_TYPE])
+    ble_device = await async_get_ble_device(entry.data[CONF_MAC])
     
     # Create entities
     _LOGGER.debug("Setting up select entities for device type: %s", device_type.__class__.__name__)
     entities = []
-    select_descriptions = device_type.get_select_descriptions()
-    _LOGGER.debug("Found %d select descriptions: %s", len(select_descriptions), select_descriptions)
-    for description in select_descriptions:
-        entity = BLESelectEntity(coordinator, description)
+    descriptions = device_type.get_sensor_descriptions()
+    _LOGGER.debug("Found %d select descriptions: %s", len(descriptions), descriptions)
+    for description in descriptions:
+        entity = BLESelectEntity(coordinator, description, ble_device)
         entities.append(entity)
             
     if entities:

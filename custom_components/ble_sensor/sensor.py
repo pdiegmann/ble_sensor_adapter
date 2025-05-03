@@ -1,19 +1,17 @@
 """Sensor platform for BLE Sensor Adapter."""
 import logging
-from typing import Any, Dict, Optional
-
-from bleak.backends.device import BLEDevice
-
+from typing import Any, Dict
 from custom_components.ble_sensor.devices.base import DeviceType
+from custom_components.ble_sensor.devices.device import async_get_ble_device
 from custom_components.ble_sensor.entity import BaseDeviceEntity
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from custom_components.ble_sensor.utils import bluetooth
 from custom_components.ble_sensor.utils.const import (
+    CONF_DEVICE_TYPE,
+    CONF_MAC,
     DOMAIN,
     CONF_DEVICES,
     CONF_NAME,
@@ -28,6 +26,33 @@ from custom_components.ble_sensor.devices import get_device_type
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up the sensor platform."""
+    coordinator: BLESensorCoordinator = hass.data[DOMAIN][entry.entry_id]
+    
+    # Get device type
+    device_type = get_device_type(entry.data[CONF_DEVICE_TYPE])
+    ble_device = await async_get_ble_device(entry.data[CONF_MAC])
+    
+    # Create entities
+    _LOGGER.debug("Setting up sensor entities for device type: %s", device_type.__class__.__name__)
+    entities = []
+    descriptions = device_type.get_sensor_descriptions()
+    _LOGGER.debug("Found %d sensor descriptions: %s", len(descriptions), descriptions)
+    for description in descriptions:
+        entity = BLESensorEntity(coordinator, description, ble_device)
+        entities.append(entity)
+            
+    if entities:
+        _LOGGER.debug("Adding %d sensor entities", len(entities))
+        async_add_entities(entities)
+    else:
+        _LOGGER.debug("No sensor entities to add for this device type.")
+
+async def ___async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
@@ -80,42 +105,14 @@ async def async_setup_entry(
         # Create sensor entities for each supported sensor type
         for sensor_info in device_instance.get_supported_sensors():
             entities.append(
-                BLESensorAdapterSensor(coordinator, sensor_info, device_instance)
+                BLESensorEntity(coordinator, sensor_info, device_instance)
             )
     
     if entities:
         async_add_entities(entities)
 
-async def async_get_ble_device(hass: HomeAssistant, address: str) -> Optional[BLEDevice]:
-    """Get a BLE device by address."""
-    # Try to find the device in already discovered devices
-    ble_device = bluetooth.async_ble_device_from_address(hass, address, connectable=True)
-    if ble_device:
-        return ble_device
-    
-    # Look for it in all discovered service infos
-    for service_info in bluetooth.async_discovered_service_info(hass):
-        if service_info.address == address:
-            return service_info.device
-    
-    # Try one more direct scan
-    try:
-        return await bluetooth.async_scanner_device_by_address(hass, address, connectable=True)
-    except Exception as ex:
-        _LOGGER.error("Error scanning for device %s: %s", address, str(ex))
-        return None
-
-class BLESensorAdapterSensor(BaseDeviceEntity, SensorEntity):
+class BLESensorEntity(BaseDeviceEntity, SensorEntity):
     """BLE Sensor Adapter sensor entity."""
-
-    def __init__(
-        self,
-        coordinator: BLESensorCoordinator,
-        description: SensorEntityDescription,
-        device: DeviceType
-    ) -> None:
-        """Initialize the sensor."""
-        super().__init__(coordinator, description, device)
     
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:

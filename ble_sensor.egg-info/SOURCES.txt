@@ -23,8 +23,3 @@ custom_components/ble_sensor/utils/__init__.py
 custom_components/ble_sensor/utils/bluetooth.py
 custom_components/ble_sensor/utils/const.py
 custom_components/ble_sensor/utils/diagnostics.py
-tests/test_binary_sensor.py
-tests/test_config_flow.py
-tests/test_coordinator.py
-tests/test_select.py
-tests/test_sensor.py

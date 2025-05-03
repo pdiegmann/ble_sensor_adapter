@@ -59,13 +59,6 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, DeviceType]]):
         devices: List[Dict[str, Any]],
         update_interval: Optional[timedelta] = None
     ) -> None:
-        """Initialize the coordinator."""
-        super().__init__(
-            hass,
-            logger,
-            name=DOMAIN,
-            update_interval=update_interval or self._get_min_update_interval([device]),
-        )
 
         self.device_registry = dr.async_get(hass)
         
@@ -77,6 +70,14 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, DeviceType]]):
         self._last_update = {}  # Stores the timestamp of the last successful update
         self._pending_updates = {}  # Stores pending update tasks
         self._devices_info = {}  # Stores the latest service info for each device
+
+        """Initialize the coordinator."""
+        super().__init__(
+            hass,
+            logger,
+            name=DOMAIN,
+            update_interval=update_interval or self._get_min_update_interval(devices),
+        )
 
         for device in devices:
             self.add_device(device)
@@ -153,8 +154,10 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, DeviceType]]):
                 
         return result
 
-    def _get_min_update_interval(self, devices: List[Dict[str, Any]]) -> int:
+    def _get_min_update_interval(self, devices: Optional[List[Dict[str, Any]]] = None) -> int:
         """Get the minimum polling interval from all devices."""
+        if not devices:
+            devices = self._devices_info
         if not devices:
             return timedelta(seconds=DEFAULT_POLL_INTERVAL)
             

@@ -26,10 +26,12 @@ class BaseDeviceEntity(CoordinatorEntity[BLESensorCoordinator], Entity):
         self, 
         coordinator: BLESensorCoordinator, 
         description: Union[SensorEntityDescription, BinarySensorEntityDescription, SwitchEntityDescription, SelectEntityDescription],
-        device: DeviceType
+        device: DeviceType,
+        *args,
+        **kwargs
     ) -> None:
         """Initialize the entity."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, *args, **kwargs)
         self.device = device
         self.entity_description = description
         self._key = description.key

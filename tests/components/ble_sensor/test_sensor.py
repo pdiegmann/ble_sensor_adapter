@@ -4,8 +4,8 @@ import pytest
 import logging
 
 from homeassistant.const import STATE_UNAVAILABLE
-from homeassistant.components.sensor import SensorEntityDescription, SensorDeviceClass
-from custom_components.ble_sensor.sensor import BLESensorAdapterSensor
+from homeassistant.components.sensor import SensorDeviceClass
+from custom_components.ble_sensor.sensor import BLESensorEntity
 from custom_components.ble_sensor.coordinator import BLESensorCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ async def test_sensor_state(hass_mock, mock_config_entry):
         device.get_model.return_value = "Test Model"
     
         # Create a test sensor
-        sensor = BLESensorAdapterSensor(
+        sensor = BLESensorEntity(
             coordinator,
             device,
             "battery",
@@ -90,7 +90,7 @@ async def test_sensor_device_info(hass_mock, mock_config_entry):
         device.get_manufacturer.return_value = "Test Manufacturer"
         device.get_model.return_value = "Test Model"
     
-        sensor = BLESensorAdapterSensor(
+        sensor = BLESensorEntity(
             coordinator,
             device,
             "battery",
@@ -129,8 +129,9 @@ async def test_sensor_attributes(hass_mock, mock_config_entry):
         device.name = "Test Device"
         device.address = "00:11:22:33:44:55"
     
-        sensor = BLESensorAdapterSensor(
+        sensor = BLESensorEntity(
             coordinator,
+            {},
             device,
             "temperature",
             "Temperature",

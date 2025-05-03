@@ -4,7 +4,7 @@ import pytest
 import logging
 
 from homeassistant.const import STATE_ON, STATE_OFF, STATE_UNAVAILABLE
-from custom_components.ble_sensor.binary_sensor import BLESensorBinarySensorEntity
+from custom_components.ble_sensor.binary_sensor import BLEBinarySensorEntity
 from custom_components.ble_sensor.coordinator import BLESensorCoordinator
 from homeassistant.components.binary_sensor import BinarySensorEntityDescription
 
@@ -36,7 +36,7 @@ async def test_binary_sensor_state(hass_mock, mock_config_entry):
             key="power_status",
             name="Test Power"
         )
-        binary_sensor = BLESensorBinarySensorEntity(
+        binary_sensor = BLEBinarySensorEntity(
             coordinator,
             description
         )
@@ -84,7 +84,7 @@ async def test_binary_sensor_device_info(hass_mock, mock_config_entry):
             key="power_status",
             name="Test Power"
         )
-        binary_sensor = BLESensorBinarySensorEntity(coordinator, description)
+        binary_sensor = BLEBinarySensorEntity(coordinator, description)
     
         device_info = binary_sensor.device_info
         assert device_info is not None
@@ -115,7 +115,7 @@ async def test_binary_sensor_unique_id(hass_mock, mock_config_entry):
             key="power_status",
             name="Test Power"
         )
-        binary_sensor = BLESensorBinarySensorEntity(coordinator, description)
+        binary_sensor = BLEBinarySensorEntity(coordinator, description)
     
         assert binary_sensor.unique_id is not None
         assert "power_status" in binary_sensor.unique_id

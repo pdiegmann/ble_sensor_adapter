@@ -1,10 +1,11 @@
 import logging
 from custom_components.ble_sensor.devices.base import DeviceType
+from custom_components.ble_sensor.devices.device import async_get_ble_device
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from custom_components.ble_sensor.coordinator import BLESensorCoordinator
-from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, DOMAIN
+from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, CONF_MAC, DOMAIN
 from custom_components.ble_sensor.devices import get_device_type
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from custom_components.ble_sensor.utils.const import KEY_PF_DND_STATE, KEY_PF_POWER_STATUS
@@ -22,6 +23,7 @@ async def async_setup_entry(
     
     # Get device type
     device_type = get_device_type(entry.data[CONF_DEVICE_TYPE])
+    ble_device = await async_get_ble_device(entry.data[CONF_MAC])
     
     # Create entities
     _LOGGER.debug("Setting up switch entities for device type: %s", device_type.__class__.__name__)
@@ -29,7 +31,7 @@ async def async_setup_entry(
     switch_descriptions = device_type.get_switch_descriptions()
     _LOGGER.debug("Found %d switch descriptions: %s", len(switch_descriptions), switch_descriptions)
     for description in switch_descriptions:
-        entity = BLESwitchEntity(coordinator, description)
+        entity = BLESwitchEntity(coordinator, description, ble_device)
         entities.append(entity)
             
     if entities:

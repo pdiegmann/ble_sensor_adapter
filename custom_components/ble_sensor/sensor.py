@@ -18,8 +18,8 @@ from custom_components.ble_sensor.utils.const import (
     CONF_NAME,
     CONF_ADDRESS,
     CONF_TYPE,
-    CONF_POLLING_INTERVAL,
-    DEFAULT_POLLING_INTERVAL,
+    CONF_POLL_INTERVAL,
+    DEFAULT_POLL_INTERVAL,
 )
 from .coordinator import BLESensorAdapterCoordinator
 from .devices import get_device_instance
@@ -45,7 +45,7 @@ async def async_setup_entry(
         name = device_config.get(CONF_NAME)
         address = device_config.get(CONF_ADDRESS)
         device_type = device_config.get(CONF_TYPE)
-        polling_interval = device_config.get(CONF_POLLING_INTERVAL, DEFAULT_POLLING_INTERVAL)
+        polling_interval = device_config.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
         
         if not address or not device_type:
             _LOGGER.error("Invalid device configuration: missing address or type")

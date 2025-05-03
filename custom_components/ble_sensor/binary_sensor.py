@@ -30,7 +30,7 @@ async def async_setup_entry(
     
     # Get device type
     device_type = get_device_type(entry.data[CONF_DEVICE_TYPE])
-    ble_device = await async_get_ble_device(entry.data[CONF_MAC])
+    ble_device = await async_get_ble_device(hass, entry.data[CONF_MAC])
     
     # Create entities
     _LOGGER.debug("Setting up binary sensor entities for device type: %s", device_type.__class__.__name__)

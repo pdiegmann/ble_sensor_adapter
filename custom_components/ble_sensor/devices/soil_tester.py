@@ -24,7 +24,7 @@ from homeassistant.components.sensor import (
 from homeassistant.components.select import SelectEntityDescription
 from homeassistant.components.switch import SwitchEntityDescription
 
-from custom_components.ble_sensor.devices.device import BLEDevice, DeviceData
+from custom_components.ble_sensor.devices.device import BLEDevice
 from custom_components.ble_sensor.utils.const import (
     KEY_S06_TEMP,
     KEY_S06_RH,

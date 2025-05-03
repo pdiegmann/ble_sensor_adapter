@@ -2,30 +2,19 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional, TypeVar, Generic, Type, Protocol
+from typing import Any, Dict, Optional
 
 from custom_components.ble_sensor.utils.const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-class DeviceData(Protocol):
-    """Protocol for device data classes."""
-    
-    @property
-    def data(self) -> Dict[str, Any]:
-        """Return the parsed device data."""
-        ...
-
-T = TypeVar("T", bound=DeviceData)
-
-class BLEDevice(Generic[T]):
+class BLEDevice():
     """Base class for BLE devices."""
 
     def __init__(
         self, 
         mac_address: str,
         device_type: str,
-        data_class: Type[T],
         model: str = "Generic BLE Device",
         manufacturer: str = "Unknown",
     ) -> None:
@@ -34,8 +23,7 @@ class BLEDevice(Generic[T]):
         self.device_type = device_type
         self.model = model
         self.manufacturer = manufacturer
-        self.data_class = data_class
-        self._data: Optional[T] = None
+        self._data: Optional[Dict[str, Any]] = None
         self._available = False
 
     @property
@@ -51,9 +39,7 @@ class BLEDevice(Generic[T]):
     @property
     def data(self) -> Optional[Dict[str, Any]]:
         """Return the device data."""
-        if self._data:
-            return self._data.data
-        return None
+        return self._data
 
     @property
     def available(self) -> bool:
@@ -68,7 +54,7 @@ class BLEDevice(Generic[T]):
     def update_from_data(self, data: Dict[str, Any]) -> bool:
         """Update device from data dictionary."""
         try:
-            self._data = self.data_class(data)
+            self._data = data
             return True
         except Exception as ex:  # pylint: disable=broad-except
             _LOGGER.error("Failed to parse data for %s: %s", self.mac_address, ex)

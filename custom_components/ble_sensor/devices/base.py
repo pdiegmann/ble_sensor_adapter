@@ -11,21 +11,10 @@ from homeassistant.components.select import SelectEntityDescription
 from homeassistant.components.sensor import SensorEntityDescription
 from homeassistant.components.switch import SwitchEntityDescription
 from homeassistant.core import HomeAssistant
-from homeassistant.const import (
-    ATTR_ATTRIBUTION,
-    ATTR_IDENTIFIERS,
-    ATTR_MANUFACTURER,
-    ATTR_MODEL,
-    ATTR_NAME,
-    ATTR_SW_VERSION,
-    CONF_LATITUDE,
-    CONF_LONGITUDE,
-    CONF_NAME,
-)
 
 from bleak import BleakClient
 
-from custom_components.ble_sensor.devices.device import BLEDevice, DeviceData
+from custom_components.ble_sensor.devices.device import BLEDevice
 from custom_components.ble_sensor.utils import bluetooth
 
 _LOGGER = logging.getLogger(__name__)
@@ -94,11 +83,6 @@ class DeviceType(ABC):
     def requires_polling(self) -> bool:
         """Return True if this device requires polling."""
         return False
-
-    async def async_custom_fetch_data(self, client: BleakClient) -> Dict[str, Any]:
-        """Fetch data from the device. Override in device-specific implementations."""
-        return {}
-
 
     @overload
     async def connect_and_get_data(self, address, hass: Optional[HomeAssistant] = None) -> Dict[str, Dict[str, Any]]|None:

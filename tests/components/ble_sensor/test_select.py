@@ -6,7 +6,7 @@ import logging
 
 from homeassistant.const import STATE_UNAVAILABLE
 from custom_components.ble_sensor.select import BLESelectEntity
-from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
+from custom_components.ble_sensor.coordinator import BLESensorCoordinator
 from homeassistant.components.select import SelectEntityDescription
 from custom_components.ble_sensor.utils.const import KEY_PF_MODE
 
@@ -33,7 +33,7 @@ async def test_select_options(hass_mock, mock_config_entry):
             "type": "petkit_fountain",
             "name": "Test Device"
         }]
-        coordinator = BLESensorDataUpdateCoordinator(
+        coordinator = BLESensorCoordinator(
             hass_mock,
             _LOGGER,
             devices
@@ -74,7 +74,7 @@ async def test_select_select_option(hass_mock, mock_config_entry):
             "type": "petkit_fountain",
             "name": "Test Device"
         }]
-        coordinator = BLESensorDataUpdateCoordinator(
+        coordinator = BLESensorCoordinator(
             hass_mock,
             _LOGGER,
             devices
@@ -116,7 +116,7 @@ async def test_select_invalid_option(hass_mock, mock_config_entry):
             "type": "petkit_fountain",
             "name": "Test Device"
         }]
-        coordinator = BLESensorDataUpdateCoordinator(
+        coordinator = BLESensorCoordinator(
             hass_mock,
             _LOGGER,
             devices

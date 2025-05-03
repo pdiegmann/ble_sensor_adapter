@@ -7,7 +7,7 @@ import logging
 
 from homeassistant.core import HomeAssistant
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak, BluetoothChange
-from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
+from custom_components.ble_sensor.coordinator import BLESensorCoordinator
 from custom_components.ble_sensor.utils.const import DOMAIN, CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ async def test_coordinator_update(hass_mock, mock_config_entry, mock_device_type
             "type": "petkit_fountain",
             "name": "Test Device"
         }]
-        coordinator = BLESensorDataUpdateCoordinator(
+        coordinator = BLESensorCoordinator(
             hass_mock,
             _LOGGER,
             devices
@@ -89,7 +89,7 @@ async def test_coordinator_initialization(hass_mock, mock_config_entry, mock_dev
             "type": "petkit_fountain",
             "name": "Test Device"
         }]
-        coordinator = BLESensorDataUpdateCoordinator(
+        coordinator = BLESensorCoordinator(
             hass_mock,
             _LOGGER,
             devices
@@ -109,7 +109,7 @@ async def test_coordinator_stop(hass_mock, mock_config_entry, mock_device_type, 
             "type": "petkit_fountain",
             "name": "Test Device"
         }]
-        coordinator = BLESensorDataUpdateCoordinator(
+        coordinator = BLESensorCoordinator(
             hass_mock,
             _LOGGER,
             devices

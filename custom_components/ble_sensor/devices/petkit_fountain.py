@@ -32,7 +32,7 @@ from homeassistant.const import (
 from bleak import BleakClient
 from bleak.exc import BleakError
 
-from custom_components.ble_sensor.devices.device import BLEDevice, DeviceData
+from custom_components.ble_sensor.devices.device import BLEDevice
 from custom_components.ble_sensor.utils.const import (
     KEY_PF_MODEL_CODE,
     KEY_PF_MODEL_NAME,

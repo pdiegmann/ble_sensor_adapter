@@ -6,7 +6,7 @@ import logging
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.components.sensor import SensorEntityDescription, SensorDeviceClass
 from custom_components.ble_sensor.sensor import BLESensorAdapterSensor
-from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
+from custom_components.ble_sensor.coordinator import BLESensorCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ async def test_sensor_state(hass_mock, mock_config_entry):
             "type": "petkit_fountain",
             "name": "Test Device"
         }]
-        coordinator = BLESensorDataUpdateCoordinator(
+        coordinator = BLESensorCoordinator(
             hass_mock,
             _LOGGER,
             devices
@@ -77,7 +77,7 @@ async def test_sensor_device_info(hass_mock, mock_config_entry):
             "type": "petkit_fountain",
             "name": "Test Device"
         }]
-        coordinator = BLESensorDataUpdateCoordinator(
+        coordinator = BLESensorCoordinator(
             hass_mock,
             _LOGGER,
             devices
@@ -118,7 +118,7 @@ async def test_sensor_attributes(hass_mock, mock_config_entry):
             "type": "petkit_fountain",
             "name": "Test Device"
         }]
-        coordinator = BLESensorDataUpdateCoordinator(
+        coordinator = BLESensorCoordinator(
             hass_mock,
             _LOGGER,
             devices

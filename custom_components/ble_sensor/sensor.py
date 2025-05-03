@@ -22,7 +22,7 @@ from custom_components.ble_sensor.utils.const import (
     CONF_POLL_INTERVAL,
     DEFAULT_POLL_INTERVAL,
 )
-from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
+from custom_components.ble_sensor.coordinator import BLESensorCoordinator
 from custom_components.ble_sensor.devices import get_device_type
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ async def async_setup_entry(
             continue
         
         # Create coordinator
-        coordinator = BLESensorDataUpdateCoordinator(
+        coordinator = BLESensorCoordinator(
             hass,
             _LOGGER,
             ble_device,
@@ -110,7 +110,7 @@ class BLESensorAdapterSensor(BaseDeviceEntity, SensorEntity):
 
     def __init__(
         self,
-        coordinator: BLESensorDataUpdateCoordinator,
+        coordinator: BLESensorCoordinator,
         description: SensorEntityDescription,
         device: DeviceType
     ) -> None:

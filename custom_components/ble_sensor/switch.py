@@ -3,7 +3,7 @@ from custom_components.ble_sensor.devices.base import DeviceType
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
+from custom_components.ble_sensor.coordinator import BLESensorCoordinator
 from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, DOMAIN
 from custom_components.ble_sensor.devices import get_device_type
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
@@ -18,7 +18,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the sensor platform."""
-    coordinator: BLESensorDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: BLESensorCoordinator = hass.data[DOMAIN][entry.entry_id]
     
     # Get device type
     device_type = get_device_type(entry.data[CONF_DEVICE_TYPE])
@@ -41,7 +41,7 @@ async def async_setup_entry(
 class BLESwitchEntity(BaseDeviceEntity, SwitchEntity):
     """Representation of a BLE switch."""
 
-    def __init__(self, coordinator: BLESensorDataUpdateCoordinator, description: SwitchEntityDescription, device: DeviceType):
+    def __init__(self, coordinator: BLESensorCoordinator, description: SwitchEntityDescription, device: DeviceType):
         """Initialize the BLE switch."""
         super().__init__(coordinator, description, device)
 

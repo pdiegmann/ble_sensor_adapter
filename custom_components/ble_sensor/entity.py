@@ -17,14 +17,14 @@ from homeassistant.components.switch import SwitchEntityDescription
 from homeassistant.components.select import SelectEntityDescription
 
 from custom_components.ble_sensor.utils.const import DOMAIN, SIGNAL_DEVICE_UPDATE
-from custom_components.ble_sensor.coordinator import BLESensorDataUpdateCoordinator
+from custom_components.ble_sensor.coordinator import BLESensorCoordinator
 
-class BaseDeviceEntity(CoordinatorEntity[BLESensorDataUpdateCoordinator], Entity):
+class BaseDeviceEntity(CoordinatorEntity[BLESensorCoordinator], Entity):
     """Base entity for BLE Sensor."""
 
     def __init__(
         self, 
-        coordinator: BLESensorDataUpdateCoordinator, 
+        coordinator: BLESensorCoordinator, 
         description: Union[SensorEntityDescription, BinarySensorEntityDescription, SwitchEntityDescription, SelectEntityDescription],
         device: DeviceType
     ) -> None:

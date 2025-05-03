@@ -1,42 +1,50 @@
 """The BLE Sensor Adapter integration."""
+import asyncio
+from datetime import timedelta
 import logging
+from custom_components.ble_sensor.devices.device import BLEDevice
 from habluetooth import BluetoothScanningMode
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Config, HomeAssistant
 from homeassistant.components import bluetooth
 from homeassistant.const import Platform
 
-from custom_components.ble_sensor import coordinator
-from custom_components.ble_sensor.utils.const import DOMAIN, CONF_LOG_LEVEL
+from custom_components.ble_sensor.coordinator import BLESensorCoordinator
+from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, CONF_MAC, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH, Platform.SELECT]
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up BLE Sensor Adapter from a config entry."""
-    hass.data.setdefault(DOMAIN, {})
-    
-    # Set up logging level if configured
-    log_level = entry.options.get(CONF_LOG_LEVEL, "info")
-    logging.getLogger(DOMAIN).setLevel(getattr(logging, log_level.upper()))
-    
-    # Check if Bluetooth integration is available
-    # if not bluetooth.async_scanner_count(hass, connectable=True):
-    #     _LOGGER.error(
-    #         "No connectable Bluetooth adapters found. This integration requires "
-    #         "at least one Bluetooth adapter that can connect to devices"
-    #     )
-    #     raise ConfigEntryNotReady("No connectable Bluetooth adapters found")
-    
-    # Store the config entry in HASS data
-    hass.data[DOMAIN][entry.entry_id] = entry.data
-    
-    # Forward the entry to the sensor platform
+async def async_setup(hass: HomeAssistant, config: Config):
+    """Set up this integration using YAML is not supported."""
+    return True
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+    """Set up this integration using UI."""
+    if hass.data.get(DOMAIN) is None:
+        hass.data.setdefault(DOMAIN, {})
+
+    update_interval = timedelta(
+        seconds=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+    )
+
+    coordinator = BLESensorCoordinator(
+        hass,
+        _LOGGER,
+        devices=[{
+            CONF_MAC: entry.data[CONF_MAC],
+            CONF_DEVICE_TYPE: entry.data[CONF_DEVICE_TYPE]
+        }],
+        update_interval=update_interval
+    )
+    await coordinator.async_refresh()
+
+    hass.data[DOMAIN][entry.entry_id] = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    
-    # Set up entry update listener
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+
+    if not entry.update_listeners:
+        entry.add_update_listener(async_reload_entry)
 
     for device_config in coordinator.device_configs:
         device_id = device_config.device_id
@@ -64,20 +72,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 connectable=True
             )
         )
-    
+
     return True
 
+async def async_update_options(hass, config_entry):
+    """Update options."""
+    await hass.config_entries.async_reload(config_entry.entry_id)
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
-    # Unload entities
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    
-    # Remove entry from HASS data
-    if unload_ok:
+    """Handle removal of an entry."""
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    unloaded = all(
+        await asyncio.gather(
+            *[
+                hass.config_entries.async_forward_entry_unload(entry, platform)
+                for platform in PLATFORMS
+                if platform in coordinator.platforms
+            ]
+        )
+    )
+    if unloaded:
         hass.data[DOMAIN].pop(entry.entry_id)
-    
-    return unload_ok
+
+    return unloaded
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry."""

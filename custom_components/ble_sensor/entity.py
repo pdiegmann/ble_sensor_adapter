@@ -26,25 +26,27 @@ class BaseDeviceEntity(CoordinatorEntity[BLESensorCoordinator], Entity):
         self, 
         coordinator: BLESensorCoordinator, 
         description: Union[SensorEntityDescription, BinarySensorEntityDescription, SwitchEntityDescription, SelectEntityDescription],
-        device: DeviceType,
+        device: Dict[str, Any],
         *args,
         **kwargs
     ) -> None:
         """Initialize the entity."""
         super().__init__(coordinator, *args, **kwargs)
+        address = device.get("address") or device.get("mac") or device.get("mac_address")
+        device_id = device.get("id", address)
         self.device = device
         self.entity_description = description
         self._key = description.key
-        self._device_id = device.mac_address
-        self._attr_unique_id = f"{device.unique_id}_{description.key}"
+        self._device_id = address
+        self._attr_unique_id = f"{device_id}_{description.key}"
         self._attr_name = description.name
 
         # Set device info
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, device.mac_address)},
-            name=device.name,
-            manufacturer=device.manufacturer,
-            model=device.model,
+            name=device.get("name"),
+            manufacturer=device.get("manufacturer"),
+            model=device.get("model"),
             # Remove via_device reference that was causing warnings
         )
         

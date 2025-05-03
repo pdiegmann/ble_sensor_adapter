@@ -1,4 +1,5 @@
 import logging
+from typing import Any, Dict
 from custom_components.ble_sensor.devices.base import DeviceType
 from custom_components.ble_sensor.devices.device import async_get_ble_device
 from homeassistant.core import HomeAssistant
@@ -44,7 +45,7 @@ async def async_setup_entry(
 class BLESelectEntity(BaseDeviceEntity, SelectEntity):
     """Representation of a BLE select."""
 
-    def __init__(self, coordinator: BLESensorCoordinator, description: SelectEntityDescription, device: DeviceType):
+    def __init__(self, coordinator: BLESensorCoordinator, description: SelectEntityDescription, device: Dict[str, Any]):
         """Initialize the BLE select."""
         super().__init__(coordinator, description, device)
 

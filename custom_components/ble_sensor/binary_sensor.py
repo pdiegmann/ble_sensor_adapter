@@ -54,7 +54,7 @@ class BLEBinarySensorEntity(BaseDeviceEntity, BinarySensorEntity):
         self, 
         coordinator: BLESensorCoordinator, 
         description: BinarySensorEntityDescription,
-        device: DeviceType
+        device: Dict[str, Any]
     ) -> None:
         """Initialize the binary sensor entity."""
         super().__init__(coordinator, description, device)

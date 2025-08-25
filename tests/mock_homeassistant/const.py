@@ -16,5 +16,3 @@ class Platform:
 
 CONF_MAC = "mac"
 CONF_NAME = "name"
-
-

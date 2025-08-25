@@ -6,5 +6,3 @@ def async_get_registry(*args, **kwargs):
 
 class DeviceRegistry:
     pass
-
-

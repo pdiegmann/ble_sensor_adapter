@@ -1,14 +1,18 @@
 """Test the BLE Sensor config flow."""
-from unittest.mock import MagicMock, patch
-import pytest
 from typing import Any
+from unittest.mock import MagicMock, patch
 
-from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import SOURCE_USER
-from homeassistant.const import CONF_NAME, CONF_MAC
-from homeassistant.data_entry_flow import AbortFlow
+import pytest
+
 from custom_components.ble_sensor.config_flow import BLESensorConfigFlow
-from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, DOMAIN, DEFAULT_DEVICE_TYPE
+from custom_components.ble_sensor.utils.const import (CONF_DEVICE_TYPE,
+                                                      DEFAULT_DEVICE_TYPE,
+                                                      DOMAIN)
+from homeassistant.config_entries import SOURCE_USER
+from homeassistant.const import CONF_MAC, CONF_NAME
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import AbortFlow
+
 
 class MockFlow:
     """Mock flow that simulates BLE sensor config flow."""
@@ -17,7 +21,7 @@ class MockFlow:
         """Initialize mock flow."""
         self.context = {}
         self.hass = None
-    
+
     def async_show_form(self, *, step_id, data_schema=None, errors=None, description_placeholders=None):
         """Show form."""
         return {
@@ -27,7 +31,7 @@ class MockFlow:
             "errors": errors or {},
             "description_placeholders": description_placeholders or {}
         }
-    
+
     def async_create_entry(self, *, title, data, options=None):
         """Create config entry."""
         return {
@@ -36,30 +40,30 @@ class MockFlow:
             "data": data,
             "options": options or {}
         }
-    
+
     async def async_set_unique_id(self, unique_id):
         """Set unique ID."""
         self._unique_id = unique_id
-        
+
     def _abort_if_unique_id_configured(self):
         """Check if unique ID is already configured."""
         # For testing - mock this behavior
         if hasattr(self, '_should_abort'):
             raise AbortFlow("already_configured")
-    
+
     @staticmethod
     def _is_valid_mac(mac: str) -> bool:
         """Check if mac address is valid."""
         import re
         return bool(re.match(r"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$", mac))
-    
+
     async def async_step_user(self, user_input=None):
         """Handle user step."""
         errors = {}
-        
+
         if user_input is not None:
             mac = user_input[CONF_MAC].lower()
-            
+
             # Validate MAC address
             if not self._is_valid_mac(mac):
                 errors["mac"] = "invalid_mac"
@@ -67,7 +71,7 @@ class MockFlow:
                 # Check if device already configured
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()
-                
+
                 # Setup the config entry with implicit device type (Petkit Fountain)
                 return self.async_create_entry(
                     title=f"Petkit Fountain ({mac})",
@@ -76,7 +80,7 @@ class MockFlow:
                         CONF_DEVICE_TYPE: DEFAULT_DEVICE_TYPE,  # Always Petkit Fountain
                     },
                 )
-        
+
         # Return form
         return self.async_show_form(
             step_id="user",
@@ -92,7 +96,7 @@ def mock_bluetooth(hass):
          patch("habluetooth.BluetoothManager") as mock_bt_manager, \
          patch("homeassistant.components.bluetooth.api._get_manager", return_value=MagicMock()), \
          patch("homeassistant.components.bluetooth.async_discovered_service_info", return_value=[]):
-            
+
         mock_scanner_count.return_value = 1
         mock_scanner.return_value.discovered_devices = []
         mock_bt_manager.return_value = MagicMock()
@@ -101,7 +105,7 @@ def mock_bluetooth(hass):
 async def test_form():
     """Test we get the form."""
     flow = MockFlow()
-    
+
     result = await flow.async_step_user(user_input=None)
     assert result["type"] == "form"
     assert result["errors"] == {}
@@ -148,7 +152,7 @@ async def test_invalid_mac():
 async def test_device_type_implicit():
     """Test that device type is always Petkit Fountain."""
     flow = MockFlow()
-    
+
     result = await flow.async_step_user(
         user_input={
             CONF_MAC: "aa:bb:cc:dd:ee:ff",

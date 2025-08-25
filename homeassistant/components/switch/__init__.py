@@ -1,3 +1,1 @@
 from homeassistant.helpers.entity import SwitchEntityDescription
-
-

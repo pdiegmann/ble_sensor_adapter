@@ -5,5 +5,3 @@ class SensorDeviceClass:
 class SensorStateClass:
     MEASUREMENT = "measurement"
     TOTAL_INCREASING = "total_increasing"
-
-

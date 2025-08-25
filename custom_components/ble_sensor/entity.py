@@ -3,18 +3,18 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from custom_components.ble_sensor.coordinator import BLESensorCoordinator
+from custom_components.ble_sensor.utils.const import DOMAIN
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from custom_components.ble_sensor.utils.const import DOMAIN
-from custom_components.ble_sensor.coordinator import BLESensorCoordinator
 
 class BaseDeviceEntity(CoordinatorEntity[BLESensorCoordinator]):
     """Base entity for BLE Sensor."""
 
     def __init__(
-        self, 
-        coordinator: BLESensorCoordinator, 
+        self,
+        coordinator: BLESensorCoordinator,
         device_id: str,
         device_name: str,
         device_address: str,
@@ -40,6 +40,6 @@ class BaseDeviceEntity(CoordinatorEntity[BLESensorCoordinator]):
     def available(self) -> bool:
         """Return True if entity is available."""
         return (
-            self.coordinator.last_update_success and 
+            self.coordinator.last_update_success and
             self.coordinator.is_device_available(self._device_id)
         )

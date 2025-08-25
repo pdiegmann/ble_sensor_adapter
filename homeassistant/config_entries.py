@@ -8,12 +8,12 @@ SOURCE_IMPORT = "import"
 class ConfigFlow:
     """Base class for config flows."""
     VERSION = 1
-    
+
     def __init_subclass__(cls, *, domain, **kwargs):
         """Initialize subclass with domain."""
         super().__init_subclass__(**kwargs)
         cls._domain = domain
-    
+
     def async_show_form(self, *, step_id, data_schema=None, errors=None, description_placeholders=None):
         """Show form."""
         return {
@@ -23,7 +23,7 @@ class ConfigFlow:
             "errors": errors or {},
             "description_placeholders": description_placeholders or {}
         }
-    
+
     def async_create_entry(self, *, title, data, options=None):
         """Create config entry."""
         return {
@@ -32,22 +32,22 @@ class ConfigFlow:
             "data": data,
             "options": options or {}
         }
-    
+
     def _abort_if_unique_id_configured(self):
         """Check if unique ID is already configured."""
         pass
-        
+
     async def async_set_unique_id(self, unique_id):
         """Set unique ID."""
         self._unique_id = unique_id
 
 class OptionsFlow:
     """Base class for options flows."""
-    
+
     def __init__(self, config_entry):
         """Initialize options flow."""
         self.config_entry = config_entry
-    
+
     def async_show_form(self, *, step_id, data_schema=None, errors=None):
         """Show form."""
         return {
@@ -56,7 +56,7 @@ class OptionsFlow:
             "data_schema": data_schema,
             "errors": errors or {}
         }
-    
+
     def async_create_entry(self, *, title="", data):
         """Create options entry."""
         return {
@@ -100,5 +100,3 @@ class HomeAssistantConfigEntries:
 
     async def async_forward_entry_unload(self, entry, platform):
         await self.flow.async_forward_entry_unload(entry, platform)
-
-

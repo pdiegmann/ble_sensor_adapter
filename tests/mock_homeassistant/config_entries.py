@@ -33,5 +33,3 @@ class HomeAssistantConfigEntries:
 
     async def async_forward_entry_unload(self, entry, platform):
         await self.flow.async_forward_entry_unload(entry, platform)
-
-

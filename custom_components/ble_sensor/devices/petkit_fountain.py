@@ -1,53 +1,38 @@
 from __future__ import annotations
 
 import asyncio
+import binascii
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Type, Union
-import binascii
-from bleak_retry_connector import establish_connection
-
-from homeassistant.components.sensor import (
-    SensorEntityDescription,
-    SensorDeviceClass,
-    SensorStateClass
-)
-from homeassistant.components.binary_sensor import (
-    BinarySensorEntityDescription,
-    BinarySensorDeviceClass
-)
-from homeassistant.components.switch import (
-    SwitchEntityDescription,
-)
-from homeassistant.components.select import (
-    SelectEntityDescription,
-)
-from homeassistant.const import (
-    PERCENTAGE,
-    UnitOfTime,
-    EntityCategory
-)
 
 from bleak import BleakClient
 from bleak.exc import BleakError
+from bleak_retry_connector import establish_connection
 
-from custom_components.ble_sensor.devices.device import BLEDevice
-from custom_components.ble_sensor.utils.const import (
-    KEY_PF_MODEL_CODE,
-    KEY_PF_MODEL_NAME,
-    KEY_PF_ALIAS,
-    KEY_PF_BATTERY,
-    KEY_PF_POWER_STATUS,
-    KEY_PF_MODE,
-    KEY_PF_DND_STATE,
-    KEY_PF_WARN_BREAKDOWN,
-    KEY_PF_WARN_WATER,
-    KEY_PF_WARN_FILTER,
-    KEY_PF_PUMP_RUNTIME,
-    KEY_PF_FILTER_PERCENT,
-    KEY_PF_RUNNING_STATUS,
-)
 from custom_components.ble_sensor.devices.base import DeviceType
+from custom_components.ble_sensor.devices.device import BLEDevice
+from custom_components.ble_sensor.utils.const import (KEY_PF_ALIAS,
+                                                      KEY_PF_BATTERY,
+                                                      KEY_PF_DND_STATE,
+                                                      KEY_PF_FILTER_PERCENT,
+                                                      KEY_PF_MODE,
+                                                      KEY_PF_MODEL_CODE,
+                                                      KEY_PF_MODEL_NAME,
+                                                      KEY_PF_POWER_STATUS,
+                                                      KEY_PF_PUMP_RUNTIME,
+                                                      KEY_PF_RUNNING_STATUS,
+                                                      KEY_PF_WARN_BREAKDOWN,
+                                                      KEY_PF_WARN_FILTER,
+                                                      KEY_PF_WARN_WATER)
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass, BinarySensorEntityDescription)
+from homeassistant.components.select import SelectEntityDescription
+from homeassistant.components.sensor import (SensorDeviceClass,
+                                             SensorEntityDescription,
+                                             SensorStateClass)
+from homeassistant.components.switch import SwitchEntityDescription
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTime
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -94,13 +79,13 @@ class PetkitFountain(DeviceType):
         self._name = "petkit_fountain"
         self._description = "Petkit Fountain"
         self._sequence = 0
-        self._device_id_bytes: Optional[bytes] = None
-        self._secret: Optional[bytes] = None
-        self._notification_queue: Optional[asyncio.Queue] = None
-        self._expected_responses: Dict[int, asyncio.Future] = {}
+        self._device_id_bytes: bytes | None = None
+        self._secret: bytes | None = None
+        self._notification_queue: asyncio.Queue | None = None
+        self._expected_responses: dict[int, asyncio.Future] = {}
         self._is_initialized = False
 
-    def get_sensor_descriptions(self) -> List[SensorEntityDescription]:
+    def get_sensor_descriptions(self) -> list[SensorEntityDescription]:
         """Return sensor entity descriptions for this device type."""
         return [
             SensorEntityDescription(
@@ -141,7 +126,7 @@ class PetkitFountain(DeviceType):
             ),
         ]
 
-    def get_binary_sensor_descriptions(self) -> List[BinarySensorEntityDescription]:
+    def get_binary_sensor_descriptions(self) -> list[BinarySensorEntityDescription]:
         """Return binary sensor entity descriptions for this device type."""
         return [
             BinarySensorEntityDescription(
@@ -166,8 +151,8 @@ class PetkitFountain(DeviceType):
                 icon=None,
             ),
         ]
-        
-    def get_switch_descriptions(self) -> List[SwitchEntityDescription]:
+
+    def get_switch_descriptions(self) -> list[SwitchEntityDescription]:
         """Return switch entity descriptions for this device type."""
         return [
             SwitchEntityDescription(
@@ -181,8 +166,8 @@ class PetkitFountain(DeviceType):
                 icon="mdi:do-not-disturb",
             ),
         ]
-        
-    def get_select_descriptions(self) -> List[SelectEntityDescription]:
+
+    def get_select_descriptions(self) -> list[SelectEntityDescription]:
         """Return select entity descriptions for this device type."""
         return [
             SelectEntityDescription(
@@ -193,14 +178,14 @@ class PetkitFountain(DeviceType):
             ),
         ]
 
-    def get_characteristics(self) -> List[str]:
+    def get_characteristics(self) -> list[str]:
         """Return characteristic UUIDs this device uses."""
         return [
             PETKIT_READ_UUID,
             PETKIT_WRITE_UUID,
         ]
 
-    def get_services(self) -> List[str]:
+    def get_services(self) -> list[str]:
         """Return service UUIDs this device uses."""
         # Return empty list if no specific services needed
         return []
@@ -247,25 +232,25 @@ class PetkitFountain(DeviceType):
             state_payload = await self._send_command_and_wait(
                 client, CMD_GET_DEVICE_STATE, 1, [0, 0], RESP_DEVICE_STATE
             )
-            
+
             if not state_payload or len(state_payload) < 12:
                 _LOGGER.error("Failed to get device state before setting power")
                 return False
-                
+
             # Copy current state and modify the power status byte
             new_state = list(state_payload)
             new_state[0] = 1 if state else 0
-            
+
             # Send command to set state
             await self._send_command_and_wait(
                 client, CMD_SET_DEVICE_MODE, 1, new_state, 999
             )
-            
+
             return True
         except BleakError as e:
             _LOGGER.error(f"BLE error setting power status: {e}")
             return False
-    
+
     async def async_set_mode(self, client: BleakClient, mode: str) -> bool:
         """Set the mode of the device."""
         try:
@@ -273,25 +258,25 @@ class PetkitFountain(DeviceType):
             state_payload = await self._send_command_and_wait(
                 client, CMD_GET_DEVICE_STATE, 1, [0, 0], RESP_DEVICE_STATE
             )
-            
+
             if not state_payload or len(state_payload) < 12:
                 _LOGGER.error("Failed to get device state before setting mode")
                 return False
-                
+
             # Copy current state and modify the mode byte
             new_state = list(state_payload)
             new_state[1] = 2 if mode.lower() == "smart" else 1
-            
+
             # Send command to set state
             await self._send_command_and_wait(
                 client, CMD_SET_DEVICE_MODE, 1, new_state, 999
             )
-            
+
             return True
         except BleakError as e:
             _LOGGER.error(f"BLE error setting mode: {e}")
             return False
-    
+
     async def async_set_dnd_state(self, client: BleakClient, state: bool) -> bool:
         """Set the Do Not Disturb state of the device."""
         try:
@@ -299,20 +284,20 @@ class PetkitFountain(DeviceType):
             config_payload = await self._send_command_and_wait(
                 client, CMD_GET_DEVICE_CONFIG, 1, [0, 0], RESP_DEVICE_CONFIG
             )
-            
+
             if not config_payload or len(config_payload) < 9:
                 _LOGGER.error("Failed to get device config before setting DND")
                 return False
-                
+
             # Copy current config and modify the DND byte
             new_config = list(config_payload)
             new_config[8] = 1 if state else 0
-            
+
             # Send command to set config
             await self._send_command_and_wait(
                 client, CMD_SET_DEVICE_CONFIG, 1, new_config, 999
             )
-            
+
             return True
         except BleakError as e:
             _LOGGER.error(f"BLE error setting DND state: {e}")
@@ -321,21 +306,21 @@ class PetkitFountain(DeviceType):
     # The following methods would be used during the fetch_data operation in the coordinator
     async def async_custom_initialization(self, client: BleakClient) -> bool:
         _LOGGER.info("Starting initialization sequence for Petkit Fountain")
-        
+
         if not client or not client.is_connected:
             _LOGGER.error("Cannot initialize: client not connected")
             return False
-            
+
         # Initialize notification queue
         self._notification_queue = asyncio.Queue()
-        
+
         # Set up notification handler
         try:
             await client.start_notify(PETKIT_READ_UUID, self._notification_handler)
         except Exception as ex:
             _LOGGER.error("Failed to start notifications: %s", ex)
             return False
-        
+
         try:
             # 1. Get Device Details (to get device_id/serial)
             details_payload = await self._send_command_with_retry(
@@ -346,23 +331,23 @@ class PetkitFountain(DeviceType):
                 RESP_DEVICE_DETAILS,
                 timeout=INIT_COMMAND_TIMEOUT
             )
-            
+
             if not details_payload or len(details_payload) < 6:
                 _LOGGER.error("Invalid device details response")
                 return False
-                
+
             # Extract device ID
             self._device_id_bytes = details_payload[0:6]
             _LOGGER.debug("Device ID/Serial: %s", binascii.hexlify(self._device_id_bytes).decode())
-            
+
             # 2. Init Device (Send secret derived from device_id)
             reversed_id = bytes(reversed(self._device_id_bytes))
             padded_secret = reversed_id + bytes(max(0, 8 - len(reversed_id)))
             self._secret = padded_secret
-            
+
             padded_device_id = self._device_id_bytes + bytes(max(0, 8 - len(self._device_id_bytes)))
             init_data = [0, 0] + list(padded_device_id) + list(self._secret)
-            
+
             init_payload = await self._send_command_with_retry(
                 client,
                 CMD_INIT_DEVICE,
@@ -371,7 +356,7 @@ class PetkitFountain(DeviceType):
                 RESP_INIT_DEVICE,
                 timeout=INIT_COMMAND_TIMEOUT
             )
-            
+
             # 3. Get Device Sync
             sync_data = [0, 0] + list(self._secret)
             sync_payload = await self._send_command_with_retry(
@@ -382,7 +367,7 @@ class PetkitFountain(DeviceType):
                 RESP_DEVICE_SYNC,
                 timeout=INIT_COMMAND_TIMEOUT
             )
-            
+
             # 4. Set Datetime (expected to timeout)
             time_data = self._time_in_bytes()
             try:
@@ -397,16 +382,16 @@ class PetkitFountain(DeviceType):
                 )
             except asyncio.TimeoutError:
                 _LOGGER.debug("Expected timeout for SET_DATETIME command")
-            
+
             self._is_initialized = True
             _LOGGER.info("Petkit initialization complete")
             return True
-            
+
         except BleakError as e:
             _LOGGER.error("BLE error during initialization: %s", e, exc_info=True)
             return False
 
-    async def async_custom_fetch_data(self, ble_device) -> Optional[Dict[str, Any]]:
+    async def async_custom_fetch_data(self, ble_device) -> dict[str, Any] | None:
         """Fetch data from the device."""
         client = None
         try:
@@ -417,18 +402,18 @@ class PetkitFountain(DeviceType):
                     name=ble_device.address,
                     timeout=10.0
                 )
-                
+
                 # Initialize if not already done
                 if not self._is_initialized:
                     if not await self.async_custom_initialization(client):
                         _LOGGER.error("Failed to initialize device")
                         return None
-                
+
                 # Fetch battery level
                 battery_payload = await self._send_command_with_retry(
                     client, CMD_GET_BATTERY, 1, [0, 0], RESP_BATTERY
                 )
-                
+
                 # Fetch device state
                 state_payload = await self._send_command_with_retry(
                     client, CMD_GET_DEVICE_STATE, 1, [0, 0], RESP_DEVICE_STATE
@@ -462,10 +447,10 @@ class PetkitFountain(DeviceType):
 
     def parse_raw_data(
         self,
-        battery_payload: Optional[bytes],
-        state_payload: Optional[bytes],
-        config_payload: Optional[bytes],
-    ) -> Dict[str, Any]:
+        battery_payload: bytes | None,
+        state_payload: bytes | None,
+        config_payload: bytes | None,
+    ) -> dict[str, Any]:
         """Parse the data from the device payloads."""
         data = {}
 
@@ -478,19 +463,19 @@ class PetkitFountain(DeviceType):
             data[KEY_PF_WARN_BREAKDOWN] = bool(state_payload[2] & 0x01)
             data[KEY_PF_WARN_WATER] = bool(state_payload[2] & 0x02)
             data[KEY_PF_WARN_FILTER] = bool(state_payload[2] & 0x04)
-            
+
             # Extract pump runtime (4 bytes, little endian)
             if len(state_payload) >= 8:
                 pump_runtime = int.from_bytes(state_payload[4:8], byteorder='little')
                 data[KEY_PF_PUMP_RUNTIME] = pump_runtime
-                
+
             # Extract running status
             if len(state_payload) >= 12:
                 data[KEY_PF_RUNNING_STATUS] = "Running" if state_payload[11] else "Stopped"
 
         if config_payload and len(config_payload) >= 9:
             data[KEY_PF_DND_STATE] = bool(config_payload[8])
-            
+
             # Extract filter percentage if available
             if len(config_payload) >= 4:
                 filter_percent = int.from_bytes(config_payload[0:4], byteorder='little')
@@ -507,44 +492,44 @@ class PetkitFountain(DeviceType):
         data: list[int],
         response_cmd: int,
         timeout: float = NORMAL_COMMAND_TIMEOUT,
-    ) -> Optional[bytes]:
+    ) -> bytes | None:
         """Send a command and wait for the expected response."""
         if not client or not client.is_connected:
             raise BleakError("Client not connected")
-            
+
         self._increment_sequence()
         command = self._build_command(self._sequence, cmd, type_val, data)
-        
+
         # Create a future for the expected response
         response_future = asyncio.Future()
         self._expected_responses[self._sequence] = response_future
-        
+
         try:
             # Send the command
             await client.write_gatt_char(PETKIT_WRITE_UUID, command)
-            _LOGGER.debug("Sent command %d (seq %d): %s", cmd, self._sequence, 
+            _LOGGER.debug("Sent command %d (seq %d): %s", cmd, self._sequence,
                          binascii.hexlify(command).decode())
-            
+
             # Wait for response
             async with asyncio.timeout(timeout):
                 response_data = await response_future
-                
+
             # Parse response
             if len(response_data) < 6:
-                _LOGGER.warning("Received short response: %s", 
+                _LOGGER.warning("Received short response: %s",
                                binascii.hexlify(response_data).decode())
                 return None
-                
+
             # Extract payload (skip header and checksum)
             payload_length = response_data[2] - 4
             if payload_length > 0 and len(response_data) >= 6 + payload_length:
                 payload = response_data[6:6+payload_length]
-                _LOGGER.debug("Received response for cmd %d: %s", 
+                _LOGGER.debug("Received response for cmd %d: %s",
                              response_cmd, binascii.hexlify(payload).decode())
                 return payload
             else:
-                return bytes()  # Empty payload
-                
+                return b''  # Empty payload
+
         except asyncio.TimeoutError:
             _LOGGER.warning("Timeout waiting for response to command %d", cmd)
             raise
@@ -562,7 +547,7 @@ class PetkitFountain(DeviceType):
         response_cmd: int,
         retries: int = MAX_COMMAND_RETRIES,
         timeout: float = NORMAL_COMMAND_TIMEOUT,
-    ) -> Optional[bytes]:
+    ) -> bytes | None:
         """Send a command with retries and wait for the expected response."""
         for attempt in range(retries):
             try:
@@ -586,7 +571,7 @@ class PetkitFountain(DeviceType):
     async def _notification_handler(self, characteristic, data):
         """Handle BLE notifications."""
         _LOGGER.debug("Received notification: %s", binascii.hexlify(bytes(data)).decode())
-        
+
         if len(data) < 6:
             _LOGGER.warning("Received malformed notification: %s", binascii.hexlify(bytes(data)).decode())
             return
@@ -598,6 +583,5 @@ class PetkitFountain(DeviceType):
             if not future.done():
                 future.set_result(bytes(data))
         else:
-            _LOGGER.debug("Received unsolicited notification for sequence %d (cmd %d)", 
+            _LOGGER.debug("Received unsolicited notification for sequence %d (cmd %d)",
                          seq, response_cmd)
-

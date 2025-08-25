@@ -20,5 +20,3 @@ class SwitchEntityDescription(EntityDescription):
 
 class SelectEntityDescription(EntityDescription):
     pass
-
-

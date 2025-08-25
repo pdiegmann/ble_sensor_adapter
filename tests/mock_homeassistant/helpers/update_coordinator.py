@@ -17,5 +17,3 @@ class DataUpdateCoordinator(Generic[T]):
 
 class UpdateFailed(Exception):
     pass
-
-

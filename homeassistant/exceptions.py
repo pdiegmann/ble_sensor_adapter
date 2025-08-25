@@ -5,5 +5,3 @@ class HomeAssistantError(Exception):
 class ConfigEntryNotReady(HomeAssistantError):
     """Raised when a config entry is not ready."""
     pass
-
-

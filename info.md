@@ -109,4 +109,3 @@ Contributions are welcome! If you add support for new devices or improve existin
 ## Disclaimer
 
 This is a custom component and may have bugs. Use at your own risk. Ensure your Bluetooth adapter is supported by the underlying `bleak` library on your Home Assistant operating system.
-

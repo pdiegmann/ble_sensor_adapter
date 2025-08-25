@@ -10,7 +10,7 @@ class DataUpdateCoordinator(Generic[T]):
         self.update_interval = update_interval
         self.update_method = update_method or self._async_update_data
         self.data = None
-    
+
     async def _async_update_data(self):
         """Default update method - to be overridden by subclasses."""
         return {}
@@ -21,5 +21,3 @@ class DataUpdateCoordinator(Generic[T]):
 
 class UpdateFailed(Exception):
     pass
-
-

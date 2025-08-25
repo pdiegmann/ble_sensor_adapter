@@ -5,28 +5,22 @@ import logging
 import re
 from typing import Any, Dict, Optional
 
-from homeassistant.components import bluetooth
 import voluptuous as vol
 
-
+from custom_components.ble_sensor.utils.const import (CONF_DEVICE_TYPE,
+                                                      CONF_MAC,
+                                                      CONF_POLL_INTERVAL,
+                                                      CONF_RETRY_COUNT,
+                                                      DEFAULT_DEVICE_TYPE,
+                                                      DEFAULT_POLL_INTERVAL,
+                                                      DEFAULT_RETRY_COUNT,
+                                                      DEVICE_TYPES, DOMAIN)
 from homeassistant import config_entries
 from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth.models import BluetoothServiceInfoBleak
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
-
-from custom_components.ble_sensor.utils.const import (
-    CONF_DEVICE_TYPE,
-    CONF_MAC,
-    CONF_POLL_INTERVAL,
-    CONF_RETRY_COUNT,
-    DEFAULT_POLL_INTERVAL,
-    DEFAULT_RETRY_COUNT,
-    DEFAULT_DEVICE_TYPE,
-    DEVICE_TYPES,
-    DOMAIN,
-)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,18 +51,18 @@ class BLESensorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         """Initialize the config flow."""
-        self._discovered_devices: Dict[str, BluetoothServiceInfoBleak] = {}
-        self._discovered_device: Optional[BluetoothServiceInfoBleak] = None
+        self._discovered_devices: dict[str, BluetoothServiceInfoBleak] = {}
+        self._discovered_device: BluetoothServiceInfoBleak | None = None
 
     async def async_step_user(
-        self, user_input: Optional[Dict[str, Any]] = None
+        self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-        errors: Dict[str, str] = {}
+        errors: dict[str, str] = {}
 
         if user_input is not None:
             mac = user_input[CONF_MAC].lower()
-            
+
             # Validate MAC address
             if not self._is_valid_mac(mac):
                 errors[CONF_MAC] = "invalid_mac"
@@ -76,7 +70,7 @@ class BLESensorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 # Check if device already configured
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()
-                
+
                 # Setup the config entry with implicit device type
                 return self.async_create_entry(
                     title=f"{DEVICE_TYPES[DEFAULT_DEVICE_TYPE]} ({mac})",
@@ -85,7 +79,7 @@ class BLESensorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_DEVICE_TYPE: DEFAULT_DEVICE_TYPE,  # Always Petkit Fountain
                     },
                 )
-        
+
         # Return form with discovered devices
         return self.async_show_form(
             step_id="user",
@@ -98,24 +92,24 @@ class BLESensorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle bluetooth discovery."""
         _LOGGER.debug("Discovered BLE device: %s", discovery_info.address)
-        
+
         # Check if device already configured
         await self.async_set_unique_id(discovery_info.address)
         self._abort_if_unique_id_configured()
-        
+
         # Store the device info
         self._discovered_device = discovery_info
-        
+
         # Create context with device name
         self.context["title_placeholders"] = {
             "name": discovery_info.name or discovery_info.address
         }
-        
+
         # Start the flow
         return await self.async_step_bluetooth_confirm()
 
     async def async_step_bluetooth_confirm(
-        self, user_input: Optional[Dict[str, Any]] = None
+        self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Confirm bluetooth discovery."""
         if user_input is None:
@@ -151,7 +145,7 @@ class BLESensorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             for info in bluetooth.async_discovered_service_info(self.hass)
             if info.connectable
         }
-        
+
         if discovered_devices:
             # Simplified schema - device type is implicit
             schema = vol.Schema(
@@ -162,7 +156,7 @@ class BLESensorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
         else:
             schema = CONFIG_SCHEMA
-            
+
         return schema
 
     @staticmethod
@@ -182,12 +176,12 @@ class BLESensorOptionsFlow(config_entries.OptionsFlow):
         self._config_entry = config_entry  # Store as instance variable, don't override self.config_entry
 
     async def async_step_init(
-        self, user_input: Optional[Dict[str, Any]] = None
+        self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Manage the options."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
-            
+
         # Fill with current values
         options = {
             CONF_POLL_INTERVAL: self._config_entry.options.get(
@@ -197,7 +191,7 @@ class BLESensorOptionsFlow(config_entries.OptionsFlow):
                 CONF_RETRY_COUNT, DEFAULT_RETRY_COUNT
             ),
         }
-        
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(

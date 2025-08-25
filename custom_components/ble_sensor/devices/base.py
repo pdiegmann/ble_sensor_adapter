@@ -1,21 +1,22 @@
 """Base class for BLE devices."""
-from abc import ABC, abstractmethod
 import asyncio
 import logging
+from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Type, Union, overload
+
+from bleak import BleakClient
 from bleak_retry_connector import establish_connection
 
-from custom_components.ble_sensor.utils.const import CONF_ADDRESS, CONF_MAC, CONF_TYPE, DOMAIN
+from custom_components.ble_sensor.devices.device import BLEDevice
+from custom_components.ble_sensor.utils.const import (CONF_ADDRESS, CONF_MAC,
+                                                      CONF_TYPE, DOMAIN)
+from homeassistant.components.binary_sensor import \
+    BinarySensorEntityDescription
 from homeassistant.components.bluetooth import async_ble_device_from_address
-from homeassistant.components.binary_sensor import BinarySensorEntityDescription
 from homeassistant.components.select import SelectEntityDescription
 from homeassistant.components.sensor import SensorEntityDescription
 from homeassistant.components.switch import SwitchEntityDescription
 from homeassistant.core import HomeAssistant
-
-from bleak import BleakClient
-
-from custom_components.ble_sensor.devices.device import BLEDevice
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,12 +34,12 @@ class DeviceType(ABC):
         self._last_connection_time = 0
         self._connection_attempts = 0
         self._max_connection_attempts = 3
-        
+
     @property
     def name(self) -> str:
         """Return the name of this device type."""
         return self._name
-        
+
     @property
     def description(self) -> str:
         """Return the description of this device type."""
@@ -61,7 +62,7 @@ class DeviceType(ABC):
     def get_select_descriptions(self) -> List[SelectEntityDescription]:
         """Return select entity descriptions for this device type."""
         return []
-        
+
     def create_device(self, mac_address: str) -> BLEDevice:
         """Create a device instance for this device type."""
         return BLEDevice(
@@ -74,11 +75,11 @@ class DeviceType(ABC):
     def get_characteristics(self) -> List[str]:
         """Return a list of characteristics UUIDs this device uses."""
         return []
-        
+
     def get_services(self) -> List[str]:
         """Return a list of service UUIDs this device uses."""
         return []
-        
+
     def requires_polling(self) -> bool:
         """Return True if this device requires polling."""
         return False
@@ -117,5 +118,3 @@ class DeviceType(ABC):
     async def async_custom_fetch_data(self, ble_device) -> Dict[str, Any]:
         """Fetch data from the device."""
         raise NotImplementedError
-
-

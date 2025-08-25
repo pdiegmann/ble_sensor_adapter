@@ -1,5 +1,6 @@
 from .models import BluetoothServiceInfoBleak
 
+
 def async_ble_device_from_address(*args, **kwargs):
     pass
 
@@ -21,5 +22,3 @@ class BluetoothChange:
 class BluetoothScanningMode:
     ACTIVE = "active"
     PASSIVE = "passive"
-
-

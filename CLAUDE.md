@@ -167,7 +167,7 @@ The config flow supports:
 
 **Mock Framework:** The `homeassistant/` and `tests/mock_homeassistant/` directories contain a minimal mock implementation of Home Assistant core components, allowing for isolated testing.
 
-**Device Data Flow:** 
+**Device Data Flow:**
 1. Coordinator polls devices based on individual intervals
 2. Device handlers connect via BLE and fetch raw data
 3. Raw data is parsed into entity state values

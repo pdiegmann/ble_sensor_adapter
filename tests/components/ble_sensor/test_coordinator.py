@@ -1,14 +1,18 @@
 """Test the BLE Sensor coordinator."""
-from unittest.mock import patch, MagicMock, AsyncMock
-import pytest
-from datetime import timedelta
-from asyncio import Future
 import logging
+from asyncio import Future
+from datetime import timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from homeassistant.core import HomeAssistant
-from homeassistant.components.bluetooth import BluetoothServiceInfoBleak, BluetoothChange
+import pytest
+
 from custom_components.ble_sensor.coordinator import BLESensorCoordinator
-from custom_components.ble_sensor.utils.const import DOMAIN, CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL
+from custom_components.ble_sensor.utils.const import (CONF_POLL_INTERVAL,
+                                                      DEFAULT_POLL_INTERVAL,
+                                                      DOMAIN)
+from homeassistant.components.bluetooth import (BluetoothChange,
+                                                BluetoothServiceInfoBleak)
+from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,7 +48,7 @@ def mock_bluetooth(hass):
          patch("habluetooth.BluetoothManager") as mock_bt_manager, \
          patch("homeassistant.components.bluetooth.api._get_manager", return_value=MagicMock()), \
          patch("homeassistant.components.async_ble_device_from_address", return_value=MagicMock()):
-            
+
         mock_scanner_count.return_value = 1
         mock_scanner.return_value.discovered_devices = []
         mock_bt_manager.return_value = MagicMock()
@@ -74,7 +78,7 @@ async def test_coordinator_update(hass_mock, mock_config_entry, mock_device_type
 
         # Test successful update
         result = await coordinator._async_update_data()
-        
+
         # The result should match what connect_and_get_data returns
         expected_result = {device_id: mock_data}
         assert result == expected_result
@@ -114,14 +118,14 @@ async def test_coordinator_stop(hass_mock, mock_config_entry, mock_device_type, 
             _LOGGER,
             devices
         )
-        
+
         # Set up test state
         coordinator._handlers = [MagicMock()]
         coordinator._initialization_complete = True
         coordinator.ble_connection = mock_ble_connection
-        
+
         await coordinator.async_stop()
-        
+
         # Verify cleanup
         assert len(coordinator._handlers) == 0
         assert coordinator._initialization_complete is False

@@ -1,14 +1,15 @@
 """Test the BLE Sensor select component."""
-from unittest.mock import MagicMock, patch, AsyncMock
-import pytest
-from asyncio import Future
 import logging
+from asyncio import Future
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from homeassistant.const import STATE_UNAVAILABLE
-from custom_components.ble_sensor.select import BLESelectEntity
+import pytest
+
 from custom_components.ble_sensor.coordinator import BLESensorCoordinator
-from homeassistant.components.select import SelectEntityDescription
+from custom_components.ble_sensor.select import BLESelectEntity
 from custom_components.ble_sensor.utils.const import KEY_PF_MODE
+from homeassistant.components.select import SelectEntityDescription
+from homeassistant.const import STATE_UNAVAILABLE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ async def test_select_options(hass_mock, mock_config_entry):
             _LOGGER,
             devices
         )
-    
+
         description = SelectEntityDescription(
             key=KEY_PF_MODE,
             name="Test Mode",
@@ -79,7 +80,7 @@ async def test_select_select_option(hass_mock, mock_config_entry):
             _LOGGER,
             devices
         )
-    
+
         description = SelectEntityDescription(
             key=KEY_PF_MODE,
             name="Test Mode",
@@ -93,7 +94,7 @@ async def test_select_select_option(hass_mock, mock_config_entry):
         coordinator.ble_connection = MagicMock()
         coordinator.ble_connection.client = MagicMock()
         coordinator.async_request_refresh = MagicMock(return_value=create_mock_coro())
-    
+
         # Test selecting an option
         await select.async_select_option("Smart")
         coordinator.device_type.async_set_mode.assert_called_once_with(

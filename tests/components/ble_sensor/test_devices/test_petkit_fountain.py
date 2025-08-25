@@ -1,8 +1,13 @@
-import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-from custom_components.ble_sensor.devices.petkit_fountain import PetkitFountain, CMD_GET_BATTERY, CMD_GET_DEVICE_STATE, RESP_BATTERY, RESP_DEVICE_STATE, RESP_DEVICE_CONFIG, PETKIT_READ_UUID
+
+import pytest
 from bleak import BleakClient
+
+from custom_components.ble_sensor.devices.petkit_fountain import (
+    CMD_GET_BATTERY, CMD_GET_DEVICE_STATE, PETKIT_READ_UUID, RESP_BATTERY,
+    RESP_DEVICE_CONFIG, RESP_DEVICE_STATE, PetkitFountain)
+
 
 @pytest.fixture
 def petkit_fountain():
@@ -17,8 +22,8 @@ def mock_bleak_client():
 @pytest.mark.asyncio
 async def test_async_custom_initialization_success(petkit_fountain, mock_bleak_client):
     # Mock _send_command_with_retry to return dummy data for successful initialization
-    with patch.object(petkit_fountain, 
-                      '_send_command_with_retry', 
+    with patch.object(petkit_fountain,
+                      '_send_command_with_retry',
                       new_callable=AsyncMock) as mock_send_command:
         mock_send_command.side_effect = [
             b'\x01\x02\x03\x04\x05\x06',  # details_payload (device_id)
@@ -26,7 +31,7 @@ async def test_async_custom_initialization_success(petkit_fountain, mock_bleak_c
             b'\x00',  # sync_payload
             asyncio.TimeoutError # Expected timeout for set_datetime
         ]
-        
+
         result = await petkit_fountain.async_custom_initialization(mock_bleak_client)
         assert result is True
         assert petkit_fountain._is_initialized is True
@@ -50,15 +55,15 @@ async def test_async_custom_initialization_notify_failure(petkit_fountain, mock_
 @pytest.mark.asyncio
 async def test_async_custom_fetch_data_success(petkit_fountain, mock_bleak_client):
     petkit_fountain._is_initialized = True
-    with patch.object(petkit_fountain, 
-                      '_send_command_with_retry', 
+    with patch.object(petkit_fountain,
+                      '_send_command_with_retry',
                       new_callable=AsyncMock) as mock_send_command:
         mock_send_command.side_effect = [
             b'\x01',  # battery_payload
             b'\x01\x02\x03\x04\x05\x06\x05\x06\x07\x08\x0B\x0C',  # state_payload (mode 2 for Smart, pump_runtime 0x08070605)
             b'\x01\x02\x03\x04\x05\x06\x07\x08\x09'   # config_payload
         ]
-        
+
         data = await petkit_fountain.async_custom_fetch_data(mock_bleak_client)
         assert data is not None
         assert data['battery'] == 1
@@ -80,8 +85,8 @@ async def test_async_custom_fetch_data_not_initialized(petkit_fountain, mock_ble
 
 @pytest.mark.asyncio
 async def test_async_set_power_status(petkit_fountain, mock_bleak_client):
-    with patch.object(petkit_fountain, 
-                      '_send_command_and_wait', 
+    with patch.object(petkit_fountain,
+                      '_send_command_and_wait',
                       new_callable=AsyncMock) as mock_send_command:
         mock_send_command.side_effect = [
             b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', # Initial state payload
@@ -95,8 +100,8 @@ async def test_async_set_power_status(petkit_fountain, mock_bleak_client):
 
 @pytest.mark.asyncio
 async def test_async_set_mode(petkit_fountain, mock_bleak_client):
-    with patch.object(petkit_fountain, 
-                      '_send_command_and_wait', 
+    with patch.object(petkit_fountain,
+                      '_send_command_and_wait',
                       new_callable=AsyncMock) as mock_send_command:
         mock_send_command.side_effect = [
             b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', # Initial state payload
@@ -110,8 +115,8 @@ async def test_async_set_mode(petkit_fountain, mock_bleak_client):
 
 @pytest.mark.asyncio
 async def test_async_set_dnd_state(petkit_fountain, mock_bleak_client):
-    with patch.object(petkit_fountain, 
-                      '_send_command_and_wait', 
+    with patch.object(petkit_fountain,
+                      '_send_command_and_wait',
                       new_callable=AsyncMock) as mock_send_command:
         mock_send_command.side_effect = [
             b'\x00\x00\x00\x00\x00\x00\x00\x00\x00', # Initial config payload
@@ -127,7 +132,7 @@ async def test_async_set_dnd_state(petkit_fountain, mock_bleak_client):
 async def test_send_command_and_wait_success(petkit_fountain, mock_bleak_client):
     # Mock write_gatt_char to simulate sending command and receiving notification
     mock_bleak_client.write_gatt_char.return_value = None
-    
+
     # Simulate notification coming in after command is sent
     async def mock_notify_callback(characteristic, data):
         await asyncio.sleep(0.1) # Simulate a small delay
@@ -157,8 +162,8 @@ async def test_send_command_and_wait_timeout(petkit_fountain, mock_bleak_client)
 
 @pytest.mark.asyncio
 async def test_send_command_with_retry_success(petkit_fountain, mock_bleak_client):
-    with patch.object(petkit_fountain, 
-                      '_send_command_and_wait', 
+    with patch.object(petkit_fountain,
+                      '_send_command_and_wait',
                       new_callable=AsyncMock) as mock_send_command_and_wait:
         mock_send_command_and_wait.return_value = b'success'
         response = await petkit_fountain._send_command_with_retry(
@@ -169,8 +174,8 @@ async def test_send_command_with_retry_success(petkit_fountain, mock_bleak_clien
 
 @pytest.mark.asyncio
 async def test_send_command_with_retry_failure(petkit_fountain, mock_bleak_client):
-    with patch.object(petkit_fountain, 
-                      '_send_command_and_wait', 
+    with patch.object(petkit_fountain,
+                      '_send_command_and_wait',
                       new_callable=AsyncMock) as mock_send_command_and_wait:
         mock_send_command_and_wait.side_effect = asyncio.TimeoutError("Test Timeout")
         with pytest.raises(asyncio.TimeoutError):
@@ -200,5 +205,3 @@ async def test_notification_handler_unsolicited_notification(petkit_fountain):
     with patch('custom_components.ble_sensor.devices.petkit_fountain._LOGGER.debug') as mock_debug:
         await petkit_fountain._notification_handler(None, b'\x55\xAA\x06\x02\xD2\x01\x00\x00\x00\x00\x00\x00\x00') # seq 2
         mock_debug.assert_called_with("Received unsolicited notification for sequence %d (cmd %d)", 2, 210)
-
-

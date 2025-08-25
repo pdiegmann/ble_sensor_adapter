@@ -1,11 +1,13 @@
 """Test configuration for ble_sensor."""
-from unittest.mock import MagicMock, patch
-import pytest
 from dataclasses import dataclass, field
 from typing import Any, Dict
+from unittest.mock import MagicMock, patch
 
-from homeassistant.const import CONF_MAC, CONF_NAME
+import pytest
+
 from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, DOMAIN
+from homeassistant.const import CONF_MAC, CONF_NAME
+
 
 @dataclass
 class MockConfigEntry:

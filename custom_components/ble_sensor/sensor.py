@@ -2,15 +2,16 @@
 import logging
 from typing import Any, Dict, Optional
 
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-
-from custom_components.ble_sensor.utils.const import DOMAIN, DEFAULT_DEVICE_TYPE
 from custom_components.ble_sensor.coordinator import BLESensorCoordinator
 from custom_components.ble_sensor.devices import get_device_type
 from custom_components.ble_sensor.entity import BaseDeviceEntity
+from custom_components.ble_sensor.utils.const import (DEFAULT_DEVICE_TYPE,
+                                                      DOMAIN)
+from homeassistant.components.sensor import (SensorEntity,
+                                             SensorEntityDescription)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,14 +22,14 @@ async def async_setup_entry(
 ) -> None:
     """Set up the sensor platform."""
     coordinator: BLESensorCoordinator = hass.data[DOMAIN][entry.entry_id]
-    
+
     entities = []
-    
+
     # Create sensor entities for each configured device
     # Simplified: we know all devices are Petkit Fountain type
     device_handler = get_device_type()  # Gets default Petkit Fountain
     sensor_descriptions = device_handler.get_sensor_descriptions()
-    
+
     for device_config in coordinator.device_configs:
         for description in sensor_descriptions:
             entity = BLESensorEntity(
@@ -39,7 +40,7 @@ async def async_setup_entry(
                 device_address=device_config.address,
             )
             entities.append(entity)
-    
+
     if entities:
         _LOGGER.debug("Adding %d sensor entities", len(entities))
         async_add_entities(entities)
@@ -66,18 +67,17 @@ class BLESensorEntity(BaseDeviceEntity, SensorEntity):
         """Return the native value of the sensor."""
         if not self.available:
             return None
-            
+
         device_data = self.coordinator.get_device_data(self._device_id)
         if device_data is None:
             return None
-            
+
         return device_data.get(self.entity_description.key)
 
     @property
     def available(self) -> bool:
         """Return True if entity is available."""
         return (
-            self.coordinator.last_update_success and 
+            self.coordinator.last_update_success and
             self.coordinator.is_device_available(self._device_id)
         )
-

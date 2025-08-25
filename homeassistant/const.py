@@ -22,5 +22,3 @@ STATE_UNAVAILABLE = "unavailable"
 STATE_UNKNOWN = "unknown"
 STATE_ON = "on"
 STATE_OFF = "off"
-
-

@@ -1,12 +1,13 @@
 """Test the BLE Sensor sensors."""
-from unittest.mock import MagicMock, patch
-import pytest
 import logging
+from unittest.mock import MagicMock, patch
 
-from homeassistant.const import STATE_UNAVAILABLE
-from homeassistant.components.sensor import SensorDeviceClass
-from custom_components.ble_sensor.sensor import BLESensorEntity
+import pytest
+
 from custom_components.ble_sensor.coordinator import BLESensorCoordinator
+from custom_components.ble_sensor.sensor import BLESensorEntity
+from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.const import STATE_UNAVAILABLE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ async def test_sensor_state(hass_mock, mock_config_entry):
         device.address = "00:11:22:33:44:55"
         device.get_manufacturer.return_value = "Test Manufacturer"
         device.get_model.return_value = "Test Model"
-    
+
         # Create a test sensor
         sensor = BLESensorEntity(
             coordinator,
@@ -89,14 +90,14 @@ async def test_sensor_device_info(hass_mock, mock_config_entry):
         device.address = "00:11:22:33:44:55"
         device.get_manufacturer.return_value = "Test Manufacturer"
         device.get_model.return_value = "Test Model"
-    
+
         sensor = BLESensorEntity(
             coordinator,
             device,
             "battery",
             "Battery"
         )
-    
+
         device_info = sensor.device_info
         assert device_info is not None
         assert "identifiers" in device_info
@@ -128,7 +129,7 @@ async def test_sensor_attributes(hass_mock, mock_config_entry):
         device = MagicMock()
         device.name = "Test Device"
         device.address = "00:11:22:33:44:55"
-    
+
         sensor = BLESensorEntity(
             coordinator,
             {},
@@ -138,6 +139,6 @@ async def test_sensor_attributes(hass_mock, mock_config_entry):
             device_class=SensorDeviceClass.TEMPERATURE,
             unit_of_measurement="°C"
         )
-    
+
         assert sensor.device_class == SensorDeviceClass.TEMPERATURE
         assert sensor.native_unit_of_measurement == "°C"

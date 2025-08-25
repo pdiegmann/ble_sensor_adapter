@@ -9,5 +9,3 @@ class BluetoothServiceInfoBleak:
         self.source = source
         self.device = device
         self.time = time
-
-

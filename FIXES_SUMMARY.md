@@ -71,4 +71,3 @@ The component now properly:
 - Logs appropriate debug/error information
 
 The switch and select control methods are currently stubbed and would need device-specific BLE command implementation to be fully functional.
-

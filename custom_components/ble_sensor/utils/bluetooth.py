@@ -3,24 +3,22 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Callable, Optional, Dict
+from typing import Any, Callable, Dict, Optional
 
 from bleak import BleakClient, BleakError
 from bleak.backends.device import BLEDevice
 
-from homeassistant.components.bluetooth import (
-    BluetoothChange,
-    BluetoothScanningMode,
-    BluetoothServiceInfoBleak,
-    async_ble_device_from_address,
-    async_register_callback,
-    async_track_unavailable,
-    async_scanner_count,
-)
+from custom_components.ble_sensor.utils.const import (
+    SIGNAL_DEVICE_AVAILABLE, SIGNAL_DEVICE_UNAVAILABLE)
+from homeassistant.components.bluetooth import (BluetoothChange,
+                                                BluetoothScanningMode,
+                                                BluetoothServiceInfoBleak,
+                                                async_ble_device_from_address,
+                                                async_register_callback,
+                                                async_scanner_count,
+                                                async_track_unavailable)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-
-from custom_components.ble_sensor.utils.const import SIGNAL_DEVICE_AVAILABLE, SIGNAL_DEVICE_UNAVAILABLE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,19 +31,19 @@ class BLEConnection:
     """Class to handle BLE connections."""
 
     def __init__(
-        self, 
-        hass: HomeAssistant, 
-        mac_address: str, 
+        self,
+        hass: HomeAssistant,
+        mac_address: str,
         entry_id: str,
-        data_callback: Callable[[Dict[str, Any]], None],
+        data_callback: Callable[[dict[str, Any]], None],
     ) -> None:
         """Initialize BLE connection handler."""
         self.hass = hass
         self.mac_address = mac_address.lower()  # Normalize MAC address
         self.entry_id = entry_id
         self.data_callback = data_callback
-        self.client: Optional[BleakClient] = None
-        self.device: Optional[BLEDevice] = None
+        self.client: BleakClient | None = None
+        self.device: BLEDevice | None = None
         self.connected = False
         self.available = False
         self._unsubscribe_tracking = None
@@ -61,7 +59,7 @@ class BLEConnection:
         """Start the connection handler."""
         _LOGGER.info("Starting BLE connection handler for %s", self.mac_address)
         self._stop_event.clear()
-        
+
         # Register for bluetooth callbacks first
         @callback
         def _async_device_callback(
@@ -70,21 +68,21 @@ class BLEConnection:
             """Handle a device update."""
             if service_info.address.lower() == self.mac_address:
                 _LOGGER.debug(
-                    "Device update for %s: change=%s, RSSI=%d", 
-                    self.mac_address, 
-                    change, 
+                    "Device update for %s: change=%s, RSSI=%d",
+                    self.mac_address,
+                    change,
                     service_info.rssi
                 )
                 self.device = service_info.device
                 self._handle_device_available()
-                
+
         # Register for bluetooth callbacks with both passive and active scanning
         for mode in [BluetoothScanningMode.PASSIVE, BluetoothScanningMode.ACTIVE]:
             # Check if we have any scanners for this mode
             scanner_count = async_scanner_count(self.hass, mode)
             if scanner_count == 0 and mode == BluetoothScanningMode.ACTIVE:
                 _LOGGER.debug("No active scanner available, device may not be discoverable")
-                
+
             unsubscribe = async_register_callback(
                 self.hass,
                 _async_device_callback,
@@ -92,21 +90,21 @@ class BLEConnection:
                 mode,
             )
             self._unsubscribe_callbacks.append(unsubscribe)
-        
+
         # Now check if the device is already available
         self.device = async_ble_device_from_address(self.hass, self.mac_address)
         if self.device:
             self._handle_device_available()
         else:
             _LOGGER.debug("Device %s not immediately available, waiting for discovery", self.mac_address)
-        
+
         # Start the connection manager
         self._reconnect_task = self.hass.async_create_task(self._connection_manager())
 
     async def stop(self) -> None:
         """Stop the connection handler."""
         self._stop_event.set()
-        
+
         # Cancel reconnect task
         if self._reconnect_task and not self._reconnect_task.done():
             self._reconnect_task.cancel()
@@ -114,15 +112,15 @@ class BLEConnection:
                 await self._reconnect_task
             except asyncio.CancelledError:
                 pass
-            
+
         # Disconnect from device
         await self._disconnect()
-        
+
         # Unsubscribe from callbacks
         if self._unsubscribe_tracking is not None:
             self._unsubscribe_tracking()
             self._unsubscribe_tracking = None
-            
+
         for unsubscribe in self._unsubscribe_callbacks:
             unsubscribe()
         self._unsubscribe_callbacks = []
@@ -141,7 +139,7 @@ class BLEConnection:
                     await self._connect()
                     if self.connected:
                         self._consecutive_errors = 0  # Reset error count on successful connection
-                    
+
                 if not self.connected or not self.available:
                     _LOGGER.debug(
                         "Device %s not connected/available, waiting %d seconds before retry",
@@ -151,7 +149,7 @@ class BLEConnection:
                     await asyncio.sleep(retry_delay)
                 else:
                     await asyncio.sleep(30)  # Check connection periodically when connected
-                    
+
             except asyncio.CancelledError:
                 break
             except BleakError as ex:
@@ -177,13 +175,13 @@ class BLEConnection:
         """Connect to the BLE device."""
         if self.client and self.client.is_connected:
             return
-            
+
         if not self.device:
             _LOGGER.debug("No device available for %s, cannot connect", self.mac_address)
             return
-            
+
         _LOGGER.debug("Connecting to %s", self.mac_address)
-        
+
         try:
             self.client = BleakClient(
                 self.device,
@@ -193,18 +191,18 @@ class BLEConnection:
             await self.client.connect()
             self.connected = True
             _LOGGER.info("Connected to %s", self.mac_address)
-            
+
             # Subscribe to tracking unavailability
             self._unsubscribe_tracking = async_track_unavailable(
                 self.hass, self._handle_device_unavailable, self.device
             )
-            
+
             # Notify that device is available
             self._handle_device_available()
-            
+
             # Set up notifications for all characteristics
             await self._setup_notifications()
-            
+
         except (BleakError, asyncio.TimeoutError) as ex:
             _LOGGER.error("Failed to connect to %s: %s", self.mac_address, ex)
             await self._disconnect()
@@ -219,15 +217,15 @@ class BLEConnection:
     async def _disconnect(self) -> None:
         """Disconnect from device."""
         self.connected = False
-        
+
         if self.client and self.client.is_connected:
             try:
                 await self.client.disconnect()
             except BleakError:
                 pass
-                
+
         self.client = None
-        
+
         if self._unsubscribe_tracking is not None:
             self._unsubscribe_tracking()
             self._unsubscribe_tracking = None
@@ -236,7 +234,7 @@ class BLEConnection:
         """Set up notifications for device characteristics."""
         if not self.client or not self.client.is_connected:
             return
-            
+
         try:
             # Discover services and characteristics
             for service in self.client.services:
@@ -248,7 +246,7 @@ class BLEConnection:
                             char.uuid,
                             self.mac_address,
                         )
-                        
+
                         # Create notification handler
                         def create_notification_handler(char_uuid):
                             async def notification_handler(sender, data):
@@ -271,12 +269,12 @@ class BLEConnection:
                                         "Error handling notification: %s", ex
                                     )
                             return notification_handler
-                            
+
                         # Start notifications
                         handler = create_notification_handler(char.uuid)
                         self._notification_callbacks[char.uuid] = handler
                         await self.client.start_notify(char.uuid, handler)
-                        
+
         except (BleakError, asyncio.TimeoutError) as ex:
             _LOGGER.error(
                 "Failed to set up notifications for %s: %s", self.mac_address, ex
@@ -287,7 +285,7 @@ class BLEConnection:
         """Read characteristic data."""
         if not self.client or not self.client.is_connected:
             raise BleakError("Not connected")
-            
+
         try:
             return await self.client.read_gatt_char(uuid)
         except (BleakError, asyncio.TimeoutError) as ex:
@@ -306,7 +304,7 @@ class BLEConnection:
         """Write to characteristic."""
         if not self.client or not self.client.is_connected:
             raise BleakError("Not connected")
-            
+
         try:
             await self.client.write_gatt_char(uuid, data, response)
         except (BleakError, asyncio.TimeoutError) as ex:
@@ -337,6 +335,6 @@ class BLEConnection:
             async_dispatcher_send(
                 self.hass, f"{SIGNAL_DEVICE_UNAVAILABLE}_{self.entry_id}"
             )
-            
+
             # Schedule disconnect in the event loop
             self.hass.async_create_task(self._disconnect())

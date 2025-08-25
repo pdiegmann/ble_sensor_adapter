@@ -1,4 +1,2 @@
 class BinarySensorDeviceClass:
     PROBLEM = "problem"
-
-

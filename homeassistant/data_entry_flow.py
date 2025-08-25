@@ -2,14 +2,14 @@
 
 class FlowResult:
     """Mock flow result."""
-    
+
     def __init__(self, flow_type, **kwargs):
         self.type = flow_type
         self.__dict__.update(kwargs)
 
 class AbortFlow(Exception):
     """Exception to abort flow."""
-    
+
     def __init__(self, reason="aborted"):
         self.reason = reason
         super().__init__(reason)

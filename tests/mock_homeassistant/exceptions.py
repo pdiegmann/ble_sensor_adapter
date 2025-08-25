@@ -1,4 +1,2 @@
 class ConfigEntryNotReady(Exception):
     pass
-
-

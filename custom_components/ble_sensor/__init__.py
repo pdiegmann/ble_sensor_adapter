@@ -10,7 +10,14 @@ from custom_components.ble_sensor.utils.const import (CONF_DEVICES,
                                                       DOMAIN)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import Config, HomeAssistant
+from homeassistant.core import HomeAssistant
+
+# Use new import path for Config to avoid deprecation warning
+# Fallback to old import for compatibility with older HA versions
+try:
+    from homeassistant.core_config import Config
+except ImportError:
+    from homeassistant.core import Config
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH, Platform.SELECT]

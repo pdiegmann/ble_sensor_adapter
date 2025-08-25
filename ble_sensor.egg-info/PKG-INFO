@@ -28,7 +28,7 @@ This custom component for Home Assistant allows you to monitor various Bluetooth
 ## Features
 
 *   Actively connects to configured BLE devices to retrieve data.
-*   Supports multiple device types with dedicated connection handlers (`petkit-fountain`, `s-06-soil-tester`).
+*   Supports Petkit fountain devices with dedicated connection handlers.
 *   Configurable via the Home Assistant UI (Integrations page).
 *   Configure devices using either their BLE MAC address or advertised name.
 *   Set custom polling intervals per device.
@@ -71,7 +71,6 @@ There are two main ways to install this custom component:
                 ├── __init__.py
                 ├── base.py
                 ├── petkit_fountain.py
-                └── s_06_soil_tester.py
 *   Restart Home Assistant.
 
 ## Configuration
@@ -94,7 +93,7 @@ Configuration is handled entirely through the Home Assistant UI.
 10. Fill in the device details:
     *   **Name:** A friendly name for the device in Home Assistant (Required).
     *   **Address:** The BLE MAC address of the device (Optional if Name is unique and discoverable).
-    *   **Type:** Select the device type from the dropdown (e.g., `petkit-fountain`, `s-06-soil-tester`) (Required).
+    *   **Type:** Select the device type from the dropdown (currently supports `petkit-fountain`) (Required).
     *   **Polling Interval:** How often (in seconds) the coordinator should attempt to connect and update data for this device. The actual update interval for the coordinator is determined by the minimum polling interval across all devices (minimum 30 seconds due to connection overhead). Default is 300 seconds (5 minutes).
 11. Click **Submit**.
 12. Repeat steps 9-11 to add more devices.
@@ -106,8 +105,6 @@ This component uses active BLE connections to retrieve data from the following d
 
 *   **petkit-fountain:** Connects to the fountain, performs the necessary initialization sequence, and retrieves detailed status information.
     *   Sensors: Power Status, Mode, Warning Breakdown, Warning Water Missing, Warning Filter, Pump Runtime (s), Filter Remaining (%), Running Status, DND State, Battery (%), RSSI.
-*   **s-06-soil-tester:** Connects to the sensor and reads the characteristic data based on the Efento BLE format.
-    *   Sensors: Temperature (°C), Humidity (%), Pressure (hPa), Battery (%), RSSI.
 
 For each configured device, the integration will create several sensor entities based on the data successfully parsed by the corresponding device type parser.
 

@@ -16,7 +16,6 @@ from homeassistant.core import HomeAssistant
 from bleak import BleakClient
 
 from custom_components.ble_sensor.devices.device import BLEDevice
-from custom_components.ble_sensor.utils import bluetooth
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,8 +24,8 @@ class DeviceType(ABC):
 
     def __init__(self) -> None:
         """Initialize the device type handler."""
-        self._name = "Unknown Device Type"
-        self._description = "Unknown Device Type"
+        self._name = "BLE Device"
+        self._description = "BLE Device"
         self._connection_lock = asyncio.Lock()
         self._stop_event = asyncio.Event()
         self._cleanup_tasks: List[asyncio.Task] = []
@@ -68,9 +67,8 @@ class DeviceType(ABC):
         return BLEDevice(
             mac_address=mac_address,
             device_type=self.name,
-            data_class=self.get_device_data_class(),
             model=self.name,
-            manufacturer="Custom BLE Device",
+            manufacturer="Petkit",  # Simplified since we only support Petkit devices
         )
 
     def get_characteristics(self) -> List[str]:
@@ -85,42 +83,17 @@ class DeviceType(ABC):
         """Return True if this device requires polling."""
         return False
 
-    @overload
-    async def connect_and_get_data(self, address, hass: Optional[HomeAssistant] = None) -> Dict[str, Dict[str, Any]]|None:
-        ...
-    
-    @overload
-    async def connect_and_get_data(self, ble_device, hass: Optional[HomeAssistant] = None) -> Dict[str, Dict[str, Any]]|None:
-        ...
-    
-    async def connect_and_get_data(self, ble_device = None, address = None, hass: Optional[HomeAssistant] = None) -> Dict[str, Dict[str, Any]]|None:
-        if ble_device is None:
-            if address is None:
-                raise ValueError("Need either device or address!")
-            ble_device = async_ble_device_from_address(hass or self.hass, address, connectable=True)
-        data = {}
-        services = self.get_services()
-        if services and len(services) > 0:
-            for uuid in self.get_services():
-                data[uuid] = self._get_data(ble_device, uuid)
-        else:
-            return self._get_data(ble_device)
-        return data
-
-    @abstractmethod
-    async def parse_raw_data(self, uuid: str, raw_data: bytearray|None) -> Dict[str, Any]|None:
-        pass
-
-    async def _get_data(self, ble_device, uuid: Optional[str] = None) -> Dict[str, Any]|None:
-        raw_data = self._get_raw_data(ble_device, uuid)
-        try:
-            data = self.parse_raw_data(uuid, raw_data)
-            return data
-        except Exception as e:
-            _LOGGER.error("Error parsing data %s: %s", raw_data, str(e))
-            return None
+    def parse_raw_data(
+        self,
+        battery_payload: Optional[bytes],
+        state_payload: Optional[bytes],
+        config_payload: Optional[bytes],
+    ) -> Dict[str, Any]:
+        """Parse raw data from device payloads."""
+        raise NotImplementedError
 
     async def _get_raw_data(self, ble_device, uuid: str) -> bytearray|None:
+        """Get raw data from a characteristic."""
         client = None
         data = None
         try:
@@ -140,4 +113,9 @@ class DeviceType(ABC):
             if client is not None and client.is_connected:
                 await client.disconnect()
             return data
-        
+
+    async def async_custom_fetch_data(self, ble_device) -> Dict[str, Any]:
+        """Fetch data from the device."""
+        raise NotImplementedError
+
+

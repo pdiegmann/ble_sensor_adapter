@@ -2,16 +2,18 @@
 import asyncio
 from datetime import timedelta
 import logging
-from custom_components.ble_sensor.devices.device import BLEDevice
-from habluetooth import BluetoothScanningMode
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Config, HomeAssistant
-from homeassistant.components import bluetooth
 from homeassistant.const import Platform
 
 from custom_components.ble_sensor.coordinator import BLESensorCoordinator
-from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, CONF_MAC, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
+from custom_components.ble_sensor.utils.const import (
+    CONF_DEVICES,
+    CONF_SCAN_INTERVAL, 
+    DEFAULT_SCAN_INTERVAL, 
+    DOMAIN
+)
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH, Platform.SELECT]
@@ -25,6 +27,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     if hass.data.get(DOMAIN) is None:
         hass.data.setdefault(DOMAIN, {})
 
+    # Get devices from config entry data
+    devices = entry.data.get(CONF_DEVICES, [])
+    if not devices:
+        # Fallback for single device config (legacy support)
+        from custom_components.ble_sensor.utils.const import CONF_MAC, CONF_DEVICE_TYPE
+        if CONF_MAC in entry.data and CONF_DEVICE_TYPE in entry.data:
+            devices = [{
+                "address": entry.data[CONF_MAC],
+                "type": entry.data[CONF_DEVICE_TYPE],
+                "name": f"Device {entry.data[CONF_MAC]}",
+                "id": entry.data[CONF_MAC]
+            }]
+
     update_interval = timedelta(
         seconds=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     )
@@ -32,46 +47,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     coordinator = BLESensorCoordinator(
         hass,
         _LOGGER,
-        devices=[{
-            CONF_MAC: entry.data[CONF_MAC],
-            CONF_DEVICE_TYPE: entry.data[CONF_DEVICE_TYPE]
-        }],
+        devices=devices,
         update_interval=update_interval
     )
-    await coordinator.async_refresh()
-
+    
+    # Store coordinator in hass data
     hass.data[DOMAIN][entry.entry_id] = coordinator
+
+    # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Add update listener
     if not entry.update_listeners:
         entry.add_update_listener(async_reload_entry)
-
-    for device_config in coordinator.device_configs:
-        device_id = device_config.device_id
-        address = device_config.address
-
-        # Register to receive callbacks when this device is discovered
-        entry.async_on_unload(
-            bluetooth.async_register_callback(
-                hass,
-                lambda service_info, change: coordinator.device_discovered(
-                    service_info, device_config.device_id, change
-                ),
-                {"address": address},
-                BluetoothScanningMode.ACTIVE
-            )
-        )
-        
-        entry.async_on_unload(
-            bluetooth.async_track_unavailable(
-                hass,
-                lambda service_info, dev_id=device_id: coordinator.device_unavailable(
-                    service_info, dev_id
-                ),
-                address,
-                connectable=True
-            )
-        )
 
     return True
 
@@ -82,15 +70,16 @@ async def async_update_options(hass, config_entry):
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Handle removal of an entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
+    
     unloaded = all(
         await asyncio.gather(
             *[
                 hass.config_entries.async_forward_entry_unload(entry, platform)
                 for platform in PLATFORMS
-                if platform in coordinator.platforms
             ]
         )
     )
+    
     if unloaded:
         hass.data[DOMAIN].pop(entry.entry_id)
 
@@ -100,3 +89,4 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry."""
     await async_unload_entry(hass, entry)
     await async_setup_entry(hass, entry)
+

@@ -1,20 +1,19 @@
 """Device types for BLE Sensor integration."""
-from typing import Dict, Type
-
 from custom_components.ble_sensor.devices.base import DeviceType
-
 from custom_components.ble_sensor.devices.petkit_fountain import PetkitFountain
-from custom_components.ble_sensor.devices.soil_tester import SoilTester
 
-# Map of device type name to device type class
-DEVICE_TYPE_MAP: Dict[str, Type[DeviceType]] = {
-    "petkit_fountain": PetkitFountain,
-    "soil_tester": SoilTester,
-}
+# Simplified device registry - currently only supports Petkit Fountain
+DEFAULT_DEVICE_TYPE = "petkit_fountain"
 
-def get_device_type(device_type_name: str) -> DeviceType:
-    """Get device type instance by name."""
-    device_type_class = DEVICE_TYPE_MAP.get(device_type_name)
-    if device_type_class is None:
-        raise ValueError(f"Unknown device type: {device_type_name}")
-    return device_type_class()
+def get_device_type(device_type_name: str = None) -> DeviceType:
+    """Get device type instance. Currently only supports Petkit Fountain."""
+    # Since we only have one device type, default to it if none specified
+    if device_type_name is None or device_type_name == DEFAULT_DEVICE_TYPE:
+        return PetkitFountain()
+    
+    # For future extensibility, raise error for unsupported types
+    raise ValueError(f"Unsupported device type: {device_type_name}. Only '{DEFAULT_DEVICE_TYPE}' is supported.")
+
+def get_supported_device_types() -> list[str]:
+    """Get list of supported device types."""
+    return [DEFAULT_DEVICE_TYPE]

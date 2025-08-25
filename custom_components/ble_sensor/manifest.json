@@ -2,14 +2,7 @@
   "domain": "ble_sensor",
   "name": "BLE Sensor",
   "bluetooth": [
-    {
-      "connectable": true,
-      "local_name": "S-06*"
-    },
-    {
-      "connectable": true,
-      "local_name": "s-06*"
-    },
+
     {
       "connectable": true,
       "local_name": "PETKIT*"

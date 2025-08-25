@@ -1,0 +1,4 @@
+from homeassistant.helpers.entity import BinarySensorEntityDescription
+from homeassistant.components.binary_sensor.const import BinarySensorDeviceClass
+
+

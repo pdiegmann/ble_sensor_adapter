@@ -1,16 +1,17 @@
-import logging
-from typing import Any, Dict
-from custom_components.ble_sensor.devices.base import DeviceType
-from custom_components.ble_sensor.devices.device import async_get_ble_device
-from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from custom_components.ble_sensor.coordinator import BLESensorCoordinator
-from custom_components.ble_sensor.utils.const import CONF_DEVICE_TYPE, CONF_MAC, DOMAIN
-from custom_components.ble_sensor.devices import get_device_type
-from custom_components.ble_sensor.utils.const import KEY_PF_MODE
-from homeassistant.components.select import SelectEntity, SelectEntityDescription
+"""Select platform for BLE Sensor integration."""
+from __future__ import annotations
 
+import logging
+from typing import Any, Dict, Optional
+
+from homeassistant.components.select import SelectEntity, SelectEntityDescription
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from custom_components.ble_sensor.utils.const import DOMAIN
+from custom_components.ble_sensor.coordinator import BLESensorCoordinator
+from custom_components.ble_sensor.devices import get_device_type
 from custom_components.ble_sensor.entity import BaseDeviceEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,45 +21,80 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the sensor platform."""
+    """Set up the select platform."""
     coordinator: BLESensorCoordinator = hass.data[DOMAIN][entry.entry_id]
     
-    # Get device type
-    device_type = get_device_type(entry.data[CONF_DEVICE_TYPE])
-    ble_device = await async_get_ble_device(hass, entry.data[CONF_MAC])
-    
-    # Create entities
-    _LOGGER.debug("Setting up select entities for device type: %s", device_type.__class__.__name__)
     entities = []
-    descriptions = device_type.get_sensor_descriptions()
-    _LOGGER.debug("Found %d select descriptions: %s", len(descriptions), descriptions)
-    for description in descriptions:
-        entity = BLESelectEntity(coordinator, description, ble_device)
-        entities.append(entity)
-            
+    
+    # Create select entities for each configured device
+    # Simplified: we know all devices are Petkit Fountain type
+    device_handler = get_device_type()  # Gets default Petkit Fountain
+    select_descriptions = device_handler.get_select_descriptions()
+    
+    for device_config in coordinator.device_configs:
+        for description in select_descriptions:
+            entity = BLESelectEntity(
+                coordinator=coordinator,
+                description=description,
+                device_id=device_config.device_id,
+                device_name=device_config.name,
+                device_address=device_config.address,
+            )
+            entities.append(entity)
+    
     if entities:
         _LOGGER.debug("Adding %d select entities", len(entities))
         async_add_entities(entities)
-    else:
-        _LOGGER.debug("No select entities to add for this device type.")
 
 class BLESelectEntity(BaseDeviceEntity, SelectEntity):
-    """Representation of a BLE select."""
+    """BLE select entity."""
 
-    def __init__(self, coordinator: BLESensorCoordinator, description: SelectEntityDescription, device: Dict[str, Any]):
-        """Initialize the BLE select."""
-        super().__init__(coordinator, description, device)
+    def __init__(
+        self,
+        coordinator: BLESensorCoordinator,
+        description: SelectEntityDescription,
+        device_id: str,
+        device_name: str,
+        device_address: str,
+    ) -> None:
+        """Initialize the select entity."""
+        super().__init__(coordinator, device_id, device_name, device_address)
+        self.entity_description = description
+        self._attr_unique_id = f"{DOMAIN}_{device_id}_{description.key}"
+        self._attr_name = f"{device_name} {description.name}"
+        self._attr_options = description.options
 
     @property
-    def current_option(self):
-        """Return the current selected option."""
-        return self.coordinator.data.get(self._key)
+    def current_option(self) -> Optional[str]:
+        """Return the current option."""
+        if not self.available:
+            return None
+            
+        device_data = self.coordinator.get_device_data(self._device_id)
+        if device_data is None:
+            return None
+            
+        value = device_data.get(self.entity_description.key)
+        if value is None:
+            return None
+            
+        # Ensure the value is in the options list
+        if str(value) in self.options:
+            return str(value)
+        
+        return None
 
-    async def async_select_option(self, option):
-        """Change the selected option."""
-        if self._key == KEY_PF_MODE:  # use self._key here
-            await self.coordinator.device_type.async_set_mode(
-                self.coordinator.ble_connection.client, option
-            )
-        await self.coordinator.async_request_refresh()
+    async def async_select_option(self, option: str) -> None:
+        """Select an option."""
+        # This would need to be implemented based on the specific device
+        # For now, just log that the action was attempted
+        _LOGGER.warning("Select option not implemented for %s", self.entity_id)
+
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        return (
+            self.coordinator.last_update_success and 
+            self.coordinator.is_device_available(self._device_id)
+        )
         

@@ -23,17 +23,18 @@ from custom_components.ble_sensor.utils.const import (
     CONF_RETRY_COUNT,
     DEFAULT_POLL_INTERVAL,
     DEFAULT_RETRY_COUNT,
+    DEFAULT_DEVICE_TYPE,
     DEVICE_TYPES,
     DOMAIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-# Validation schema for config flow
+# Simplified validation schema - device type is implicit (Petkit Fountain only)
 CONFIG_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_MAC): str,
-        vol.Required(CONF_DEVICE_TYPE): vol.In(DEVICE_TYPES),
+        # Device type is now implicit - always Petkit Fountain
     }
 )
 
@@ -76,12 +77,12 @@ class BLESensorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()
                 
-                # Setup the config entry
+                # Setup the config entry with implicit device type
                 return self.async_create_entry(
-                    title=f"{DEVICE_TYPES[user_input[CONF_DEVICE_TYPE]]} ({mac})",
+                    title=f"{DEVICE_TYPES[DEFAULT_DEVICE_TYPE]} ({mac})",
                     data={
                         CONF_MAC: mac,
-                        CONF_DEVICE_TYPE: user_input[CONF_DEVICE_TYPE],
+                        CONF_DEVICE_TYPE: DEFAULT_DEVICE_TYPE,  # Always Petkit Fountain
                     },
                 )
         
@@ -122,40 +123,21 @@ class BLESensorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 step_id="bluetooth_confirm",
                 description_placeholders={
                     "name": self._discovered_device.name
-                    or self._discovered_device.address
+                    or self._discovered_device.address,
+                    "device_type": DEVICE_TYPES[DEFAULT_DEVICE_TYPE]
                 },
             )
 
-        # Get device type
-        return await self.async_step_device_type()
-
-    async def async_step_device_type(
-        self, user_input: Optional[Dict[str, Any]] = None
-    ) -> FlowResult:
-        """Select device type."""
-        if user_input is None:
-            return self.async_show_form(
-                step_id="device_type",
-                data_schema=vol.Schema(
-                    {vol.Required(CONF_DEVICE_TYPE): vol.In(DEVICE_TYPES)}
-                ),
-                description_placeholders={
-                    "name": self._discovered_device.name
-                    or self._discovered_device.address
-                },
-            )
-            
-        # Create entry
+        # Create entry directly with implicit device type (Petkit Fountain)
         mac = self._discovered_device.address.lower()
-        device_type = user_input[CONF_DEVICE_TYPE]
-        
         return self.async_create_entry(
-            title=f"{DEVICE_TYPES[device_type]} ({mac})",
+            title=f"{DEVICE_TYPES[DEFAULT_DEVICE_TYPE]} ({mac})",
             data={
                 CONF_MAC: mac,
-                CONF_DEVICE_TYPE: device_type,
+                CONF_DEVICE_TYPE: DEFAULT_DEVICE_TYPE,
             },
         )
+
 
     @staticmethod
     def _is_valid_mac(mac: str) -> bool:
@@ -171,10 +153,11 @@ class BLESensorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         }
         
         if discovered_devices:
+            # Simplified schema - device type is implicit
             schema = vol.Schema(
                 {
                     vol.Required(CONF_MAC): vol.In(discovered_devices),
-                    vol.Required(CONF_DEVICE_TYPE): vol.In(DEVICE_TYPES),
+                    # Device type is implicit - always Petkit Fountain
                 }
             )
         else:

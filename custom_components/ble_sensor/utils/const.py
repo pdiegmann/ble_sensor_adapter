@@ -19,12 +19,12 @@ DEFAULT_UPDATE_INTERVAL: Final = 60
 DEFAULT_POLL_INTERVAL: Final = 10
 DEFAULT_RETRY_COUNT: Final = 3
 
-# Device types
+# Device types - simplified for single device focus
+DEFAULT_DEVICE_TYPE: Final = "petkit_fountain"
 DEVICE_TYPES: Final = {
     "petkit_fountain": "Petkit Fountain",
-    "soil_tester": "S-06 Soil Tester"
-    # Add more device types as needed
 }
+SUPPORTED_DEVICE_TYPES: Final = list(DEVICE_TYPES.keys())
 
 # System health
 SYSTEM_HEALTH_INFO: Final = "system_health_info"
@@ -48,10 +48,3 @@ KEY_PF_WARN_FILTER = "warn_filter"
 KEY_PF_PUMP_RUNTIME = "pump_runtime"
 KEY_PF_FILTER_PERCENT = "filter_percent"
 KEY_PF_RUNNING_STATUS = "running_status"
-
-
-# S-06 SOIL TESTER
-KEY_S06_TEMP = "temperature"
-KEY_S06_RH = "humidity"
-KEY_S06_PRESSURE = "pressure"
-KEY_S06_BATTERY = "battery"

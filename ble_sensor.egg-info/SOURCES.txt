@@ -18,7 +18,6 @@ custom_components/ble_sensor/devices/__init__.py
 custom_components/ble_sensor/devices/base.py
 custom_components/ble_sensor/devices/device.py
 custom_components/ble_sensor/devices/petkit_fountain.py
-custom_components/ble_sensor/devices/soil_tester.py
 custom_components/ble_sensor/utils/__init__.py
 custom_components/ble_sensor/utils/bluetooth.py
 custom_components/ble_sensor/utils/const.py

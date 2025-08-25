@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import binascii
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Type, Union
 
 from bleak import BleakClient
@@ -393,12 +393,13 @@ class PetkitFountain(DeviceType):
         self._device_id_bytes = details_payload[0:6]
         _LOGGER.debug("Device ID/Serial: %s", binascii.hexlify(self._device_id_bytes).decode())
 
-        # 2. Init Device (Send secret derived from device_id)
-        reversed_id = bytes(reversed(self._device_id_bytes))
-        padded_secret = reversed_id + bytes(max(0, 8 - len(reversed_id)))
-        self._secret = padded_secret
-        padded_device_id = self._device_id_bytes + bytes(max(0, 8 - len(self._device_id_bytes)))
-        init_data = [0, 0] + list(padded_device_id) + list(self._secret)
+        # 2. Init Device (Send secret derived from device_id) - PetkitW5BLEMQTT compatible
+        reversed_id = list(reversed(self._device_id_bytes))
+        secret = self._replace_last_two_if_zero(reversed_id.copy())
+        padded_secret = self._pad_array(secret, 8)
+        self._secret = bytes(padded_secret)
+        padded_device_id = self._pad_array(list(self._device_id_bytes), 8)
+        init_data = [0, 0] + padded_device_id + padded_secret
         await self._send_command_with_retry(
             client,
             CMD_INIT_DEVICE,
@@ -410,7 +411,7 @@ class PetkitFountain(DeviceType):
         await asyncio.sleep(1.0)
 
         # 3. Get Device Sync
-        sync_data = [0, 0] + list(self._secret)
+        sync_data = [0, 0] + padded_secret
         await self._send_command_with_retry(
             client,
             CMD_GET_DEVICE_SYNC,
@@ -421,8 +422,8 @@ class PetkitFountain(DeviceType):
         )
         await asyncio.sleep(0.75)
 
-        # 4. Set Datetime (expected to timeout)
-        time_data = self._time_in_bytes()
+        # 4. Set Datetime (expected to timeout) - PetkitW5BLEMQTT compatible
+        time_data = self._time_in_bytes_petkit()
         try:
             await self._send_command_with_retry(
                 client,
@@ -437,6 +438,29 @@ class PetkitFountain(DeviceType):
             _LOGGER.debug("Expected timeout for SET_DATETIME command")
         await asyncio.sleep(0.75)
         return True
+
+    @staticmethod
+    def _replace_last_two_if_zero(array):
+        if len(array) >= 2 and array[-1] == 0 and array[-2] == 0:
+            array[-2] = 13
+            array[-1] = 37
+        return array
+
+    @staticmethod
+    def _pad_array(data, target_length):
+        return [0] * (target_length - len(data)) + data
+
+    @staticmethod
+    def _time_in_bytes_petkit():
+        """Get current time as seconds since 2000-01-01, PetkitW5BLEMQTT compatible."""
+        date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
+        now = datetime.now(timezone.utc).strftime(date_format)
+        reference_time = datetime.strptime("2000-01-01T00:00:00.000+0000", date_format)
+        current_time = datetime.strptime(now, date_format)
+        seconds = int((current_time - reference_time).total_seconds())
+        # PetkitW5BLEMQTT: [0, (seconds>>24)&255, (seconds>>16)&255, (seconds>>8)&255, seconds&255, 13]
+        time_bytes = [0, (seconds >> 24) & 255, (seconds >> 16) & 255, (seconds >> 8) & 255, seconds & 255, 13]
+        return time_bytes
 
     async def async_custom_fetch_data(self, ble_device) -> dict[str, Any] | None:
         """Fetch data from the device."""

@@ -95,8 +95,8 @@ async def test_async_set_power_status(petkit_fountain, mock_bleak_client):
         result = await petkit_fountain.async_set_power_status(mock_bleak_client, True)
         assert result is True
         # Verify that _send_command_and_wait was called with the correct new_state
-        args, kwargs = mock_send_command.call_args_list[1]
-        assert args[3][0] == 1 # Check the power status byte
+    args, _ = mock_send_command.call_args_list[1]
+    assert args[3][0] == 1 # Check the power status byte
 
 @pytest.mark.asyncio
 async def test_async_set_mode(petkit_fountain, mock_bleak_client):
@@ -110,8 +110,8 @@ async def test_async_set_mode(petkit_fountain, mock_bleak_client):
         result = await petkit_fountain.async_set_mode(mock_bleak_client, "Smart")
         assert result is True
         # Verify that _send_command_and_wait was called with the correct new_state
-        args, kwargs = mock_send_command.call_args_list[1]
-        assert args[3][1] == 2 # Check the mode byte (2 for Smart)
+    args, _ = mock_send_command.call_args_list[1]
+    assert args[3][1] == 2 # Check the mode byte (2 for Smart)
 
 @pytest.mark.asyncio
 async def test_async_set_dnd_state(petkit_fountain, mock_bleak_client):
@@ -125,8 +125,8 @@ async def test_async_set_dnd_state(petkit_fountain, mock_bleak_client):
         result = await petkit_fountain.async_set_dnd_state(mock_bleak_client, True)
         assert result is True
         # Verify that _send_command_and_wait was called with the correct new_config
-        args, kwargs = mock_send_command.call_args_list[1]
-        assert args[3][8] == 1 # Check the DND byte (1 for True)
+    args, _ = mock_send_command.call_args_list[1]
+    assert args[3][8] == 1 # Check the DND byte (1 for True)
 
 @pytest.mark.asyncio
 async def test_send_command_and_wait_success(petkit_fountain, mock_bleak_client):

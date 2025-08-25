@@ -113,7 +113,7 @@ class DeviceType(ABC):
         finally:
             if client is not None and client.is_connected:
                 await client.disconnect()
-            return data
+        return data
 
     async def async_custom_fetch_data(self, ble_device) -> Dict[str, Any]:
         """Fetch data from the device."""

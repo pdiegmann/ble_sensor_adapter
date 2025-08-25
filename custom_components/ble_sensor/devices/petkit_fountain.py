@@ -314,7 +314,36 @@ class PetkitFountain(DeviceType):
 
         self._notification_queue = asyncio.Queue()
 
-        # Set up notification handler and verify characteristics
+        if not await self._setup_and_verify_notifications(client):
+            return False
+
+        # Robust initialization sequence with retries and reconnects
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                if not await self._try_device_initialization(client):
+                    raise ValueError("Device initialization sequence failed")
+                self._is_initialized = True
+                _LOGGER.info("Petkit initialization complete (attempt %d)", attempt + 1)
+                return True
+            except Exception as e:
+                _LOGGER.error("Initialization attempt %d failed: %s", attempt + 1, str(e))
+                await asyncio.sleep(2.0)
+                try:
+                    await client.disconnect()
+                except Exception:
+                    pass
+                await asyncio.sleep(1.0)
+                try:
+                    await client.connect()
+                except Exception as e2:
+                    _LOGGER.error("Reconnect failed: %s", str(e2))
+                    return False
+        _LOGGER.error("Petkit initialization failed after %d attempts", max_attempts)
+        return False
+
+    async def _setup_and_verify_notifications(self, client: BleakClient) -> bool:
+        """Helper to set up notification handler and verify characteristics."""
         try:
             await client.start_notify(PETKIT_READ_UUID, self._notification_handler)
             _LOGGER.info("Successfully started notifications on characteristic %s", PETKIT_READ_UUID)
@@ -336,139 +365,132 @@ class PetkitFountain(DeviceType):
                 _LOGGER.error("Write characteristic %s not found", PETKIT_WRITE_UUID)
                 return False
             await asyncio.sleep(0.2)
+            return True
         except Exception as ex:
             _LOGGER.error("Failed to start notifications: %s", ex, exc_info=True)
             return False
 
-        # Robust initialization sequence with retries and reconnects
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            try:
-                # 1. Retry get_device_details until valid
-                details_payload = None
-                for _ in range(5):
-                    details_payload = await self._send_command_with_retry(
-                        client,
-                        CMD_GET_DEVICE_DETAILS,
-                        1,
-                        [0, 0],
-                        RESP_DEVICE_DETAILS,
-                        timeout=INIT_COMMAND_TIMEOUT
-                    )
-                    if details_payload and len(details_payload) >= 6:
-                        break
-                    _LOGGER.warning("Device details not valid, retrying...")
-                    await asyncio.sleep(1.5)
-                if not details_payload or len(details_payload) < 6:
-                    raise Exception("Invalid device details response after retries")
+    async def _try_device_initialization(self, client: BleakClient) -> bool:
+        """Helper to split out the main initialization steps for cognitive complexity."""
+        # 1. Retry get_device_details until valid
+        details_payload = None
+        for _ in range(5):
+            details_payload = await self._send_command_with_retry(
+                client,
+                CMD_GET_DEVICE_DETAILS,
+                1,
+                [0, 0],
+                RESP_DEVICE_DETAILS,
+                timeout=INIT_COMMAND_TIMEOUT
+            )
+            if details_payload and len(details_payload) >= 6:
+                break
+            _LOGGER.warning("Device details not valid, retrying...")
+            await asyncio.sleep(1.5)
+        if not details_payload or len(details_payload) < 6:
+            raise ValueError("Invalid device details response after retries")
 
-                self._device_id_bytes = details_payload[0:6]
-                _LOGGER.debug("Device ID/Serial: %s", binascii.hexlify(self._device_id_bytes).decode())
+        self._device_id_bytes = details_payload[0:6]
+        _LOGGER.debug("Device ID/Serial: %s", binascii.hexlify(self._device_id_bytes).decode())
 
-                # 2. Init Device (Send secret derived from device_id)
-                reversed_id = bytes(reversed(self._device_id_bytes))
-                padded_secret = reversed_id + bytes(max(0, 8 - len(reversed_id)))
-                self._secret = padded_secret
-                padded_device_id = self._device_id_bytes + bytes(max(0, 8 - len(self._device_id_bytes)))
-                init_data = [0, 0] + list(padded_device_id) + list(self._secret)
-                await self._send_command_with_retry(
-                    client,
-                    CMD_INIT_DEVICE,
-                    1,
-                    init_data,
-                    RESP_INIT_DEVICE,
-                    timeout=INIT_COMMAND_TIMEOUT
-                )
-                await asyncio.sleep(1.0)
+        # 2. Init Device (Send secret derived from device_id)
+        reversed_id = bytes(reversed(self._device_id_bytes))
+        padded_secret = reversed_id + bytes(max(0, 8 - len(reversed_id)))
+        self._secret = padded_secret
+        padded_device_id = self._device_id_bytes + bytes(max(0, 8 - len(self._device_id_bytes)))
+        init_data = [0, 0] + list(padded_device_id) + list(self._secret)
+        await self._send_command_with_retry(
+            client,
+            CMD_INIT_DEVICE,
+            1,
+            init_data,
+            RESP_INIT_DEVICE,
+            timeout=INIT_COMMAND_TIMEOUT
+        )
+        await asyncio.sleep(1.0)
 
-                # 3. Get Device Sync
-                sync_data = [0, 0] + list(self._secret)
-                await self._send_command_with_retry(
-                    client,
-                    CMD_GET_DEVICE_SYNC,
-                    1,
-                    sync_data,
-                    RESP_DEVICE_SYNC,
-                    timeout=INIT_COMMAND_TIMEOUT
-                )
-                await asyncio.sleep(0.75)
+        # 3. Get Device Sync
+        sync_data = [0, 0] + list(self._secret)
+        await self._send_command_with_retry(
+            client,
+            CMD_GET_DEVICE_SYNC,
+            1,
+            sync_data,
+            RESP_DEVICE_SYNC,
+            timeout=INIT_COMMAND_TIMEOUT
+        )
+        await asyncio.sleep(0.75)
 
-                # 4. Set Datetime (expected to timeout)
-                time_data = self._time_in_bytes()
-                try:
-                    await self._send_command_with_retry(
-                        client,
-                        CMD_SET_DATETIME,
-                        1,
-                        time_data,
-                        999,
-                        timeout=5,
-                        retries=1
-                    )
-                except asyncio.TimeoutError:
-                    _LOGGER.debug("Expected timeout for SET_DATETIME command")
-                await asyncio.sleep(0.75)
-
-                self._is_initialized = True
-                _LOGGER.info("Petkit initialization complete (attempt %d)", attempt + 1)
-                return True
-            except Exception as e:
-                _LOGGER.error("Initialization attempt %d failed: %s", attempt + 1, str(e))
-                await asyncio.sleep(2.0)
-                try:
-                    await client.disconnect()
-                except Exception:
-                    pass
-                await asyncio.sleep(1.0)
-                try:
-                    await client.connect()
-                except Exception as e2:
-                    _LOGGER.error("Reconnect failed: %s", str(e2))
-                    return False
-        _LOGGER.error("Petkit initialization failed after %d attempts", max_attempts)
-        return False
+        # 4. Set Datetime (expected to timeout)
+        time_data = self._time_in_bytes()
+        try:
+            await self._send_command_with_retry(
+                client,
+                CMD_SET_DATETIME,
+                1,
+                time_data,
+                999,
+                timeout=5,
+                retries=1
+            )
+        except asyncio.TimeoutError:
+            _LOGGER.debug("Expected timeout for SET_DATETIME command")
+        await asyncio.sleep(0.75)
+        return True
 
     async def async_custom_fetch_data(self, ble_device) -> dict[str, Any] | None:
         """Fetch data from the device."""
         _LOGGER.info("Starting data fetch for device %s", ble_device.address)
-        
+
         # Reset initialization state for each new connection
         self._is_initialized = False
         self._device_id_bytes = None
         self._secret = None
         self._expected_responses.clear()
-        
+
         client = None
         try:
             async with asyncio.timeout(30):
+                _LOGGER.debug("Attempting BLE connection to %s", ble_device.address)
                 client = await establish_connection(
                     client_class=BleakClient,
                     device=ble_device,
                     name=ble_device.address,
                     timeout=10.0
                 )
-
                 _LOGGER.info("BLE connection established to %s", ble_device.address)
 
                 # Always initialize for each session
+                _LOGGER.debug("Beginning initialization for device %s", ble_device.address)
                 if not await self.async_custom_initialization(client):
                     _LOGGER.error("Failed to initialize device %s", ble_device.address)
                     return None
+                _LOGGER.debug("Initialization complete for device %s, sleeping 1.5s before commands", ble_device.address)
+                await asyncio.sleep(1.5)
 
                 # Fetch battery level
+                _LOGGER.debug("Sending GET_BATTERY command to %s", ble_device.address)
                 battery_payload = await self._send_command_with_retry(
                     client, CMD_GET_BATTERY, 1, [0, 0], RESP_BATTERY
                 )
+                _LOGGER.debug("Received battery payload: %s", binascii.hexlify(battery_payload or b'').decode())
+                await asyncio.sleep(1.0)
 
                 # Fetch device state
+                _LOGGER.debug("Sending GET_DEVICE_STATE command to %s", ble_device.address)
                 state_payload = await self._send_command_with_retry(
                     client, CMD_GET_DEVICE_STATE, 1, [0, 0], RESP_DEVICE_STATE
                 )
+                _LOGGER.debug("Received state payload: %s", binascii.hexlify(state_payload or b'').decode())
+                await asyncio.sleep(1.0)
 
                 # Fetch device config
+                _LOGGER.debug("Sending GET_DEVICE_CONFIG command to %s", ble_device.address)
                 config_payload = await self._send_command_with_retry(
                     client, CMD_GET_DEVICE_CONFIG, 1, [0, 0], RESP_DEVICE_CONFIG
                 )
+                _LOGGER.debug("Received config payload: %s", binascii.hexlify(config_payload or b'').decode())
+                await asyncio.sleep(1.0)
 
                 # Process payloads and return a dictionary of sensor values
                 data = self.parse_raw_data(battery_payload, state_payload, config_payload)
@@ -500,35 +522,37 @@ class PetkitFountain(DeviceType):
     ) -> dict[str, Any]:
         """Parse the data from the device payloads."""
         data = {}
+        data.update(self._parse_battery(battery_payload))
+        data.update(self._parse_state(state_payload))
+        data.update(self._parse_config(config_payload))
+        return data
 
+    def _parse_battery(self, battery_payload: bytes | None) -> dict:
         if battery_payload and len(battery_payload) >= 1:
-            data[KEY_PF_BATTERY] = int(battery_payload[0])
+            return {KEY_PF_BATTERY: int(battery_payload[0])}
+        return {}
 
+    def _parse_state(self, state_payload: bytes | None) -> dict:
+        data = {}
         if state_payload and len(state_payload) >= 12:
             data[KEY_PF_POWER_STATUS] = bool(state_payload[0])
             data[KEY_PF_MODE] = "Smart" if state_payload[1] == 2 else "Normal"
             data[KEY_PF_WARN_BREAKDOWN] = bool(state_payload[2] & 0x01)
             data[KEY_PF_WARN_WATER] = bool(state_payload[2] & 0x02)
             data[KEY_PF_WARN_FILTER] = bool(state_payload[2] & 0x04)
-
-            # Extract pump runtime (4 bytes, little endian)
             if len(state_payload) >= 8:
-                pump_runtime = int.from_bytes(state_payload[4:8], byteorder='little')
-                data[KEY_PF_PUMP_RUNTIME] = pump_runtime
-
-            # Extract running status
+                data[KEY_PF_PUMP_RUNTIME] = int.from_bytes(state_payload[4:8], byteorder='little')
             if len(state_payload) >= 12:
                 data[KEY_PF_RUNNING_STATUS] = "Running" if state_payload[11] else "Stopped"
+        return data
 
+    def _parse_config(self, config_payload: bytes | None) -> dict:
+        data = {}
         if config_payload and len(config_payload) >= 9:
             data[KEY_PF_DND_STATE] = bool(config_payload[8])
-
-            # Extract filter percentage if available
             if len(config_payload) >= 4:
                 filter_percent = int.from_bytes(config_payload[0:4], byteorder='little')
-                # Convert to percentage (assuming max value represents 100%)
                 data[KEY_PF_FILTER_PERCENT] = min(100, max(0, filter_percent))
-
         return data
 
     async def _send_command_and_wait(
@@ -542,6 +566,7 @@ class PetkitFountain(DeviceType):
     ) -> bytes | None:
         """Send a command and wait for the expected response."""
         if not client or not client.is_connected:
+            _LOGGER.error("BLE client not connected before sending command %d", cmd)
             raise BleakError("Client not connected")
 
         self._increment_sequence()
@@ -552,7 +577,8 @@ class PetkitFountain(DeviceType):
         self._expected_responses[self._sequence] = response_future
 
         try:
-            # Send the command
+            _LOGGER.debug("About to send command %d (seq %d) to device. Command bytes: %s", cmd, self._sequence, binascii.hexlify(command).decode())
+            _LOGGER.debug("Client connection state before write: %s", client.is_connected)
             await client.write_gatt_char(PETKIT_WRITE_UUID, command)
             _LOGGER.info("Sent command %d (seq %d): %s", cmd, self._sequence,
                         binascii.hexlify(command).decode())
@@ -562,6 +588,7 @@ class PetkitFountain(DeviceType):
             async with asyncio.timeout(timeout):
                 response_data = await response_future
 
+            _LOGGER.debug("Received raw response for seq %d: %s", self._sequence, binascii.hexlify(response_data).decode())
             # Parse response
             if len(response_data) < 6:
                 _LOGGER.warning("Received short response: %s",
@@ -576,10 +603,14 @@ class PetkitFountain(DeviceType):
                              response_cmd, binascii.hexlify(payload).decode())
                 return payload
             else:
+                _LOGGER.debug("Response for cmd %d had empty payload.", response_cmd)
                 return b''  # Empty payload
 
         except asyncio.TimeoutError:
             _LOGGER.warning("Timeout waiting for response to command %d", cmd)
+            raise
+        except Exception as ex:
+            _LOGGER.error("Exception during send_command_and_wait for cmd %d: %s", cmd, ex, exc_info=True)
             raise
         finally:
             # Clean up the future, even if it timed out or an error occurred

@@ -76,95 +76,94 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return result
 
         _LOGGER.info("Coordinator update cycle starting for %d devices", len(self.device_configs))
-        
+
         # Check Bluetooth integration on first update cycle
         if not hasattr(self, '_bt_check_done'):
             await self._check_bluetooth_integration()
             self._bt_check_done = True
-        
+
         # Try to update each device
         for device_config in self.device_configs:
-            device_id = device_config.device_id
-            address = device_config.address.upper()  # Normalize MAC address to uppercase
-            # Validate MAC address format
-            if not self._is_valid_mac_address(address):
-                _LOGGER.error("Invalid MAC address format: %s", address)
-                self._device_status[device_id] = False
-                continue
-
-            # Skip devices that are not due for update yet
-            if not self._is_update_due(device_id):
-                _LOGGER.info("Device %s not due for update yet (last update: %s, interval: %s)", 
-                           device_id, self._last_update.get(device_id, 'never'), device_config.polling_interval)
-                if device_id in self._device_data:
-                    result[device_id] = self._device_data[device_id]
-                continue
-
-            _LOGGER.info("Processing device %s (%s) - due for update", device_id, address)
-
-            # Get the device handler (simplified - we know it's Petkit Fountain)
-            device_handler = get_device_type()  # Always returns Petkit Fountain handler
-
-            # Get a fresh BLE device (don't reuse stored ones)
-            try:
-                ble_device = async_ble_device_from_address(
-                    self.hass, address, connectable=True
-                )
-            except Exception as e:
-                _LOGGER.error(
-                    "Error looking up BLE device %s: %s", 
-                    address, str(e), exc_info=True
-                )
-                self._device_status[device_id] = False
-                continue
-
-            if not ble_device:
-                _LOGGER.warning(
-                    "Device %s (%s) not currently reachable via Bluetooth. "
-                    "Ensure device is powered on, nearby, and not connected to other apps.",
-                    device_config.name,
-                    address
-                )
-                
-                # Try alternative BLE device discovery methods
-                try:
-                    await self._try_alternative_ble_discovery(address)
-                except Exception as e:
-                    _LOGGER.debug("Alternative BLE discovery failed: %s", e)
-                
-                # Mark device as unavailable
-                self._device_status[device_id] = False
-                continue
-
-            # Connect and get data
-            try:
-                data = await device_handler.async_custom_fetch_data(ble_device)
-                if data:
-                    # Store data and mark device as available
-                    self._device_data[device_id] = data
-                    self._device_status[device_id] = True
-                    result[device_id] = data
-
-                    # Update last successful update timestamp
-                    self._last_update[device_id] = time.time()
-                    _LOGGER.info("Successfully updated device %s with data: %s", device_id, data)
-                else:
-                    # No data received, mark device as unavailable
-                    self._device_status[device_id] = False
-                    _LOGGER.warning("No data received from device %s", device_id)
-
-            except Exception as ex:
-                _LOGGER.error(
-                    "Error updating device %s (%s): %s",
-                    device_config.name,
-                    address,
-                    str(ex),
-                    exc_info=True
-                )
-                # Mark device as unavailable on error
-                self._device_status[device_id] = False
+            await self._update_single_device(device_config, result)
 
         return result
+
+    async def _update_single_device(self, device_config, result):
+        device_id = device_config.device_id
+        address = device_config.address.upper()  # Normalize MAC address to uppercase
+        # Validate MAC address format
+        if not self._is_valid_mac_address(address):
+            _LOGGER.error("Invalid MAC address format: %s", address)
+            self._device_status[device_id] = False
+            return
+
+        # Skip devices that are not due for update yet
+        if not self._is_update_due(device_id):
+            _LOGGER.info("Device %s not due for update yet (last update: %s, interval: %s)",
+                        device_id, self._last_update.get(device_id, 'never'), device_config.polling_interval)
+            if device_id in self._device_data:
+                result[device_id] = self._device_data[device_id]
+            return
+
+        _LOGGER.info("Processing device %s (%s) - due for update", device_id, address)
+
+        # Get the device handler (simplified - we know it's Petkit Fountain)
+        device_handler = get_device_type()  # Always returns Petkit Fountain handler
+
+        # Get a fresh BLE device (don't reuse stored ones)
+        try:
+            ble_device = async_ble_device_from_address(
+                self.hass, address, connectable=True
+            )
+        except Exception as e:
+            _LOGGER.error(
+                "Error looking up BLE device %s: %s",
+                address, str(e), exc_info=True
+            )
+            self._device_status[device_id] = False
+            return
+
+        if not ble_device:
+            _LOGGER.warning(
+                "Device %s (%s) not currently reachable via Bluetooth. "
+                "Ensure device is powered on, nearby, and not connected to other apps.",
+                device_config.name,
+                address
+            )
+            # Try alternative BLE device discovery methods
+            try:
+                await self._try_alternative_ble_discovery(address)
+            except Exception as e:
+                _LOGGER.debug("Alternative BLE discovery failed: %s", e)
+            # Mark device as unavailable
+            self._device_status[device_id] = False
+            return
+
+        # Connect and get data
+        try:
+            data = await device_handler.async_custom_fetch_data(ble_device)
+            if data:
+                # Store data and mark device as available
+                self._device_data[device_id] = data
+                self._device_status[device_id] = True
+                result[device_id] = data
+                # Update last successful update timestamp
+                self._last_update[device_id] = time.time()
+                _LOGGER.info("Successfully updated device %s with data: %s", device_id, data)
+            else:
+                # No data received, mark device as unavailable
+                self._device_status[device_id] = False
+                _LOGGER.warning("No data received from device %s", device_id)
+        except Exception as ex:
+            _LOGGER.error(
+                "Error updating device %s (%s): %s",
+                device_config.name,
+                address,
+                str(ex),
+                exc_info=True
+            )
+            # Mark device as unavailable on error
+            self._device_status[device_id] = False
 
     def _get_min_update_interval(self, devices: list[dict[str, Any]] | None = None) -> timedelta:
         """Get the minimum polling interval from all devices."""

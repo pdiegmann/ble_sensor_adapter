@@ -593,26 +593,28 @@ class PetkitFountain(DeviceType):
             _LOGGER.error("BLE client not connected before sending command %d", cmd)
             raise BleakError("Client not connected")
 
-        self._increment_sequence()
-        command = self._build_command(self._sequence, cmd, type_val, data)
+        seq = self._sequence  # Use current sequence for this command
+        command = self._build_command(seq, cmd, type_val, data)
 
         # Create a future for the expected response
         response_future = asyncio.Future()
-        self._expected_responses[self._sequence] = response_future
+        self._expected_responses[seq] = response_future
 
         try:
-            _LOGGER.debug("About to send command %d (seq %d) to device. Command bytes: %s", cmd, self._sequence, binascii.hexlify(command).decode())
+            _LOGGER.debug("About to send command %d (seq %d) to device. Command bytes: %s", cmd, seq, binascii.hexlify(command).decode())
             _LOGGER.debug("Client connection state before write: %s", client.is_connected)
             await client.write_gatt_char(PETKIT_WRITE_UUID, command)
-            _LOGGER.info("Sent command %d (seq %d): %s", cmd, self._sequence,
-                        binascii.hexlify(command).decode())
-            _LOGGER.info("Expecting response for seq %d, expecting cmd %d", self._sequence, response_cmd)
+            _LOGGER.info("Sent command %d (seq %d): %s", cmd, seq, binascii.hexlify(command).decode())
+            _LOGGER.info("Expecting response for seq %d, expecting cmd %d", seq, response_cmd)
+
+            # Increment sequence AFTER sending
+            self._increment_sequence()
 
             # Wait for response
             async with asyncio.timeout(timeout):
                 response_data = await response_future
 
-            _LOGGER.debug("Received raw response for seq %d: %s", self._sequence, binascii.hexlify(response_data).decode())
+            _LOGGER.debug("Received raw response for seq %d: %s", seq, binascii.hexlify(response_data).decode())
             # Parse response
             if len(response_data) < 6:
                 _LOGGER.warning("Received short response: %s",
@@ -638,8 +640,8 @@ class PetkitFountain(DeviceType):
             raise
         finally:
             # Clean up the future, even if it timed out or an error occurred
-            if self._sequence in self._expected_responses:
-                del self._expected_responses[self._sequence]
+            if seq in self._expected_responses:
+                del self._expected_responses[seq]
 
     async def _send_command_with_retry(
         self,

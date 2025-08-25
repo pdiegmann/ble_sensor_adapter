@@ -216,7 +216,7 @@ class PetkitFountain(DeviceType):
     def _time_in_bytes() -> list[int]:
         """Get current time formatted as bytes for CMD_SET_DATETIME."""
         now = datetime.now()
-        year_bytes = list(int(str(now.year)[i:i+2]) for i in range(0, 4, 2))
+        year_bytes = [int(str(now.year)[i:i+2]) for i in range(0, 4, 2)]
         time_data = year_bytes + [now.month, now.day, now.hour, now.minute, now.second]
         return time_data
 
@@ -376,7 +376,7 @@ class PetkitFountain(DeviceType):
             padded_device_id = self._device_id_bytes + bytes(max(0, 8 - len(self._device_id_bytes)))
             init_data = [0, 0] + list(padded_device_id) + list(self._secret)
 
-            init_payload = await self._send_command_with_retry(
+            await self._send_command_with_retry(
                 client,
                 CMD_INIT_DEVICE,
                 1,
@@ -387,7 +387,7 @@ class PetkitFountain(DeviceType):
 
             # 3. Get Device Sync
             sync_data = [0, 0] + list(self._secret)
-            sync_payload = await self._send_command_with_retry(
+            await self._send_command_with_retry(
                 client,
                 CMD_GET_DEVICE_SYNC,
                 1,

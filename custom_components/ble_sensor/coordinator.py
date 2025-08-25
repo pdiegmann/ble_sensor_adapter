@@ -86,8 +86,6 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for device_config in self.device_configs:
             device_id = device_config.device_id
             address = device_config.address.upper()  # Normalize MAC address to uppercase
-            device_type = device_config.device_type
-            
             # Validate MAC address format
             if not self._is_valid_mac_address(address):
                 _LOGGER.error("Invalid MAC address format: %s", address)

@@ -306,119 +306,127 @@ class PetkitFountain(DeviceType):
 
     # The following methods would be used during the fetch_data operation in the coordinator
     async def async_custom_initialization(self, client: BleakClient) -> bool:
-        _LOGGER.info("Starting initialization sequence for Petkit Fountain")
+        _LOGGER.info("Starting robust initialization sequence for Petkit Fountain")
 
         if not client or not client.is_connected:
             _LOGGER.error("Cannot initialize: client not connected")
             return False
 
-        # Initialize notification queue
         self._notification_queue = asyncio.Queue()
 
-        # Set up notification handler
+        # Set up notification handler and verify characteristics
         try:
             await client.start_notify(PETKIT_READ_UUID, self._notification_handler)
             _LOGGER.info("Successfully started notifications on characteristic %s", PETKIT_READ_UUID)
-            
-            # Verify characteristics are available
             services = client.services
             read_char_found = False
             write_char_found = False
-            
             for service in services:
                 for characteristic in service.characteristics:
                     if characteristic.uuid.lower() == PETKIT_READ_UUID.lower():
                         read_char_found = True
-                        _LOGGER.info("Found read characteristic: %s (properties: %s)", 
-                                   characteristic.uuid, characteristic.properties)
+                        _LOGGER.info("Found read characteristic: %s (properties: %s)", characteristic.uuid, characteristic.properties)
                     elif characteristic.uuid.lower() == PETKIT_WRITE_UUID.lower():
                         write_char_found = True
-                        _LOGGER.info("Found write characteristic: %s (properties: %s)", 
-                                   characteristic.uuid, characteristic.properties)
-            
+                        _LOGGER.info("Found write characteristic: %s (properties: %s)", characteristic.uuid, characteristic.properties)
             if not read_char_found:
                 _LOGGER.error("Read characteristic %s not found", PETKIT_READ_UUID)
                 return False
             if not write_char_found:
                 _LOGGER.error("Write characteristic %s not found", PETKIT_WRITE_UUID)
                 return False
-            
-            # Give notifications time to be established
-            await asyncio.sleep(0.1)
-            
+            await asyncio.sleep(0.2)
         except Exception as ex:
             _LOGGER.error("Failed to start notifications: %s", ex, exc_info=True)
             return False
 
-        try:
-            # 1. Get Device Details (to get device_id/serial)
-            details_payload = await self._send_command_with_retry(
-                client,
-                CMD_GET_DEVICE_DETAILS,
-                1,
-                [0, 0],
-                RESP_DEVICE_DETAILS,
-                timeout=INIT_COMMAND_TIMEOUT
-            )
-
-            if not details_payload or len(details_payload) < 6:
-                _LOGGER.error("Invalid device details response")
-                return False
-
-            # Extract device ID
-            self._device_id_bytes = details_payload[0:6]
-            _LOGGER.debug("Device ID/Serial: %s", binascii.hexlify(self._device_id_bytes).decode())
-
-            # 2. Init Device (Send secret derived from device_id)
-            reversed_id = bytes(reversed(self._device_id_bytes))
-            padded_secret = reversed_id + bytes(max(0, 8 - len(reversed_id)))
-            self._secret = padded_secret
-
-            padded_device_id = self._device_id_bytes + bytes(max(0, 8 - len(self._device_id_bytes)))
-            init_data = [0, 0] + list(padded_device_id) + list(self._secret)
-
-            await self._send_command_with_retry(
-                client,
-                CMD_INIT_DEVICE,
-                1,
-                init_data,
-                RESP_INIT_DEVICE,
-                timeout=INIT_COMMAND_TIMEOUT
-            )
-
-            # 3. Get Device Sync
-            sync_data = [0, 0] + list(self._secret)
-            await self._send_command_with_retry(
-                client,
-                CMD_GET_DEVICE_SYNC,
-                1,
-                sync_data,
-                RESP_DEVICE_SYNC,
-                timeout=INIT_COMMAND_TIMEOUT
-            )
-
-            # 4. Set Datetime (expected to timeout)
-            time_data = self._time_in_bytes()
+        # Robust initialization sequence with retries and reconnects
+        max_attempts = 3
+        for attempt in range(max_attempts):
             try:
+                # 1. Retry get_device_details until valid
+                details_payload = None
+                for _ in range(5):
+                    details_payload = await self._send_command_with_retry(
+                        client,
+                        CMD_GET_DEVICE_DETAILS,
+                        1,
+                        [0, 0],
+                        RESP_DEVICE_DETAILS,
+                        timeout=INIT_COMMAND_TIMEOUT
+                    )
+                    if details_payload and len(details_payload) >= 6:
+                        break
+                    _LOGGER.warning("Device details not valid, retrying...")
+                    await asyncio.sleep(1.5)
+                if not details_payload or len(details_payload) < 6:
+                    raise Exception("Invalid device details response after retries")
+
+                self._device_id_bytes = details_payload[0:6]
+                _LOGGER.debug("Device ID/Serial: %s", binascii.hexlify(self._device_id_bytes).decode())
+
+                # 2. Init Device (Send secret derived from device_id)
+                reversed_id = bytes(reversed(self._device_id_bytes))
+                padded_secret = reversed_id + bytes(max(0, 8 - len(reversed_id)))
+                self._secret = padded_secret
+                padded_device_id = self._device_id_bytes + bytes(max(0, 8 - len(self._device_id_bytes)))
+                init_data = [0, 0] + list(padded_device_id) + list(self._secret)
                 await self._send_command_with_retry(
                     client,
-                    CMD_SET_DATETIME,
+                    CMD_INIT_DEVICE,
                     1,
-                    time_data,
-                    999,
-                    timeout=5,
-                    retries=1
+                    init_data,
+                    RESP_INIT_DEVICE,
+                    timeout=INIT_COMMAND_TIMEOUT
                 )
-            except asyncio.TimeoutError:
-                _LOGGER.debug("Expected timeout for SET_DATETIME command")
+                await asyncio.sleep(1.0)
 
-            self._is_initialized = True
-            _LOGGER.info("Petkit initialization complete")
-            return True
+                # 3. Get Device Sync
+                sync_data = [0, 0] + list(self._secret)
+                await self._send_command_with_retry(
+                    client,
+                    CMD_GET_DEVICE_SYNC,
+                    1,
+                    sync_data,
+                    RESP_DEVICE_SYNC,
+                    timeout=INIT_COMMAND_TIMEOUT
+                )
+                await asyncio.sleep(0.75)
 
-        except BleakError as e:
-            _LOGGER.error("BLE error during initialization: %s", e, exc_info=True)
-            return False
+                # 4. Set Datetime (expected to timeout)
+                time_data = self._time_in_bytes()
+                try:
+                    await self._send_command_with_retry(
+                        client,
+                        CMD_SET_DATETIME,
+                        1,
+                        time_data,
+                        999,
+                        timeout=5,
+                        retries=1
+                    )
+                except asyncio.TimeoutError:
+                    _LOGGER.debug("Expected timeout for SET_DATETIME command")
+                await asyncio.sleep(0.75)
+
+                self._is_initialized = True
+                _LOGGER.info("Petkit initialization complete (attempt %d)", attempt + 1)
+                return True
+            except Exception as e:
+                _LOGGER.error("Initialization attempt %d failed: %s", attempt + 1, str(e))
+                await asyncio.sleep(2.0)
+                try:
+                    await client.disconnect()
+                except Exception:
+                    pass
+                await asyncio.sleep(1.0)
+                try:
+                    await client.connect()
+                except Exception as e2:
+                    _LOGGER.error("Reconnect failed: %s", str(e2))
+                    return False
+        _LOGGER.error("Petkit initialization failed after %d attempts", max_attempts)
+        return False
 
     async def async_custom_fetch_data(self, ble_device) -> dict[str, Any] | None:
         """Fetch data from the device."""

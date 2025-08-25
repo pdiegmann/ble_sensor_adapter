@@ -65,7 +65,7 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.add_device(device)
         
         # Perform initial Bluetooth integration check
-        self._check_bluetooth_integration()
+        # Note: Cannot call async method from sync __init__, so we defer this check
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from all configured devices."""
@@ -76,6 +76,11 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return result
 
         _LOGGER.info("Coordinator update cycle starting for %d devices", len(self.device_configs))
+        
+        # Check Bluetooth integration on first update cycle
+        if not hasattr(self, '_bt_check_done'):
+            await self._check_bluetooth_integration()
+            self._bt_check_done = True
         
         # Try to update each device
         for device_config in self.device_configs:
@@ -270,11 +275,11 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         pattern = r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$'
         return bool(re.match(pattern, mac))
     
-    def _check_bluetooth_integration(self) -> None:
+    async def _check_bluetooth_integration(self) -> None:
         """Check if Home Assistant's Bluetooth integration is properly configured."""
         try:
             from homeassistant.components.bluetooth import async_get_bluetooth
-            bluetooth_manager = async_get_bluetooth(self.hass)
+            bluetooth_manager = await async_get_bluetooth(self.hass)
             
             if not bluetooth_manager:
                 _LOGGER.error(

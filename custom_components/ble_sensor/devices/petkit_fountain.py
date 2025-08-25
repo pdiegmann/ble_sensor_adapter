@@ -317,8 +317,36 @@ class PetkitFountain(DeviceType):
         # Set up notification handler
         try:
             await client.start_notify(PETKIT_READ_UUID, self._notification_handler)
+            _LOGGER.info("Successfully started notifications on characteristic %s", PETKIT_READ_UUID)
+            
+            # Verify characteristics are available
+            services = await client.get_services()
+            read_char_found = False
+            write_char_found = False
+            
+            for service in services:
+                for characteristic in service.characteristics:
+                    if characteristic.uuid.lower() == PETKIT_READ_UUID.lower():
+                        read_char_found = True
+                        _LOGGER.info("Found read characteristic: %s (properties: %s)", 
+                                   characteristic.uuid, characteristic.properties)
+                    elif characteristic.uuid.lower() == PETKIT_WRITE_UUID.lower():
+                        write_char_found = True
+                        _LOGGER.info("Found write characteristic: %s (properties: %s)", 
+                                   characteristic.uuid, characteristic.properties)
+            
+            if not read_char_found:
+                _LOGGER.error("Read characteristic %s not found", PETKIT_READ_UUID)
+                return False
+            if not write_char_found:
+                _LOGGER.error("Write characteristic %s not found", PETKIT_WRITE_UUID)
+                return False
+            
+            # Give notifications time to be established
+            await asyncio.sleep(0.1)
+            
         except Exception as ex:
-            _LOGGER.error("Failed to start notifications: %s", ex)
+            _LOGGER.error("Failed to start notifications: %s", ex, exc_info=True)
             return False
 
         try:
@@ -517,8 +545,9 @@ class PetkitFountain(DeviceType):
         try:
             # Send the command
             await client.write_gatt_char(PETKIT_WRITE_UUID, command)
-            _LOGGER.debug("Sent command %d (seq %d): %s", cmd, self._sequence,
-                         binascii.hexlify(command).decode())
+            _LOGGER.info("Sent command %d (seq %d): %s", cmd, self._sequence,
+                        binascii.hexlify(command).decode())
+            _LOGGER.info("Expecting response for seq %d, expecting cmd %d", self._sequence, response_cmd)
 
             # Wait for response
             async with asyncio.timeout(timeout):
@@ -580,18 +609,24 @@ class PetkitFountain(DeviceType):
 
     async def _notification_handler(self, characteristic, data):
         """Handle BLE notifications."""
-        _LOGGER.debug("Received notification: %s", binascii.hexlify(bytes(data)).decode())
+        data_hex = binascii.hexlify(bytes(data)).decode()
+        _LOGGER.info("Received BLE notification: %s (len=%d)", data_hex, len(data))
 
         if len(data) < 6:
-            _LOGGER.warning("Received malformed notification: %s", binascii.hexlify(bytes(data)).decode())
+            _LOGGER.warning("Received malformed notification: %s", data_hex)
             return
 
         seq = data[3]
         response_cmd = data[4]
+        _LOGGER.info("Parsed notification: seq=%d, cmd=%d", seq, response_cmd)
+        
         if seq in self._expected_responses:
             future = self._expected_responses[seq]
             if not future.done():
+                _LOGGER.info("Setting result for expected response seq %d", seq)
                 future.set_result(bytes(data))
+            else:
+                _LOGGER.warning("Future already done for seq %d", seq)
         else:
-            _LOGGER.debug("Received unsolicited notification for sequence %d (cmd %d)",
-                         seq, response_cmd)
+            _LOGGER.warning("Received unsolicited notification for sequence %d (cmd %d), expected sequences: %s",
+                           seq, response_cmd, list(self._expected_responses.keys()))

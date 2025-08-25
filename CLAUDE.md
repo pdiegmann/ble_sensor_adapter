@@ -21,6 +21,9 @@ pytest tests/components/ble_sensor/test_coordinator.py
 
 # Run tests in verbose mode
 pytest -v
+
+# Debug specific tests (e.g., for BLE sensor functionality)
+PYTHONPATH=/Users/philhennel/Downloads/ble_sensor_adapter pytest tests/components/ble_sensor/test_sensor.py -v
 ```
 
 ### Building and Installation
@@ -153,7 +156,8 @@ The component emphasizes graceful error handling:
 - BLE connection timeouts should not crash the component
 - Device unavailability should be reflected in entity availability
 - Parsing errors should be logged but not prevent other devices from updating
-- Use appropriate log levels (`debug` for detailed info, `error` for failures)
+- Use appropriate log levels (`info` for status updates, `warning` for issues, `error` for failures)
+- Device initialization state is reset for each BLE connection session to prevent stale state issues
 
 ### Configuration and Options
 
@@ -174,3 +178,36 @@ The config flow supports:
 4. Entities retrieve data from coordinator on state requests
 
 **Integration Type:** This is a "device" integration that creates device entries in Home Assistant, with entities linked to those devices.
+
+## Recent Improvements and Debugging
+
+### Deprecation Warning Fix
+- **Fixed Config import deprecation**: Resolved "The deprecated alias Config was used from ble_sensor" warning
+- **Backward compatibility**: Uses `try/except` import pattern for compatibility with older Home Assistant versions
+- **Future-proofing**: Ready for Home Assistant 2025.11 when old import path is removed
+
+### Entity Availability Fix (Latest)
+- **Fixed entity availability logic**: Removed dependency on global coordinator success, now focuses only on device-specific availability
+- **Resolved initialization state issues**: Device initialization state is properly reset for each BLE connection session
+- **Enhanced logging visibility**: Changed critical logs from DEBUG to INFO/WARNING levels for better troubleshooting
+
+### Debugging Features Added
+- **Comprehensive lifecycle logging**: Integration setup, coordinator cycles, and platform registration
+- **BLE operation visibility**: Detailed connection attempts, initialization sequences, and data fetch results  
+- **Entity creation tracking**: Logs show sensor entity creation counts and unique IDs
+- **Device processing details**: Update timing, BLE device discovery, and connection status
+
+### Troubleshooting Tips
+When entities show as unavailable:
+1. Check Home Assistant logs for INFO-level messages from `custom_components.ble_sensor`
+2. Verify device is powered on, nearby, and not connected to other apps
+3. Look for BLE connection establishment and initialization sequence logs
+4. Monitor coordinator update cycles and device processing messages
+
+### Log Analysis
+Key log messages to look for:
+- `"Setting up BLE Sensor integration"` - Integration startup
+- `"Coordinator update cycle starting"` - Update cycles beginning
+- `"BLE connection established"` - Successful BLE connections
+- `"Successfully fetched and parsed data"` - Data retrieval success
+- `"Device X not currently reachable"` - BLE discovery issues

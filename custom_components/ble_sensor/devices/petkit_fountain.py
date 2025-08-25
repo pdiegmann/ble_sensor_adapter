@@ -628,5 +628,9 @@ class PetkitFountain(DeviceType):
             else:
                 _LOGGER.warning("Future already done for seq %d", seq)
         else:
-            _LOGGER.warning("Received unsolicited notification for sequence %d (cmd %d), expected sequences: %s",
-                           seq, response_cmd, list(self._expected_responses.keys()))
+            if response_cmd == 1:
+                _LOGGER.debug("Received benign unsolicited notification for sequence %d (cmd %d), expected sequences: %s",
+                              seq, response_cmd, list(self._expected_responses.keys()))
+            else:
+                _LOGGER.warning("Received unsolicited notification for sequence %d (cmd %d), expected sequences: %s",
+                                seq, response_cmd, list(self._expected_responses.keys()))

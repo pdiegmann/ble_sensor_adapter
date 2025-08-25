@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import timedelta
@@ -62,6 +63,9 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         for device in devices:
             self.add_device(device)
+        
+        # Perform initial Bluetooth integration check
+        self._check_bluetooth_integration()
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from all configured devices."""
@@ -76,8 +80,14 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Try to update each device
         for device_config in self.device_configs:
             device_id = device_config.device_id
-            address = device_config.address
+            address = device_config.address.upper()  # Normalize MAC address to uppercase
             device_type = device_config.device_type
+            
+            # Validate MAC address format
+            if not self._is_valid_mac_address(address):
+                _LOGGER.error("Invalid MAC address format: %s", address)
+                self._device_status[device_id] = False
+                continue
 
             # Skip devices that are not due for update yet
             if not self._is_update_due(device_id):
@@ -93,16 +103,32 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             device_handler = get_device_type()  # Always returns Petkit Fountain handler
 
             # Get a fresh BLE device (don't reuse stored ones)
-            ble_device = async_ble_device_from_address(
-                self.hass, address, connectable=True
-            )
+            try:
+                ble_device = async_ble_device_from_address(
+                    self.hass, address, connectable=True
+                )
+            except Exception as e:
+                _LOGGER.error(
+                    "Error looking up BLE device %s: %s", 
+                    address, str(e), exc_info=True
+                )
+                self._device_status[device_id] = False
+                continue
 
             if not ble_device:
                 _LOGGER.warning(
-                    "Device %s (%s) not currently reachable via Bluetooth",
+                    "Device %s (%s) not currently reachable via Bluetooth. "
+                    "Ensure device is powered on, nearby, and not connected to other apps.",
                     device_config.name,
                     address
                 )
+                
+                # Try alternative BLE device discovery methods
+                try:
+                    await self._try_alternative_ble_discovery(address)
+                except Exception as e:
+                    _LOGGER.debug("Alternative BLE discovery failed: %s", e)
+                
                 # Mark device as unavailable
                 self._device_status[device_id] = False
                 continue
@@ -238,3 +264,81 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.update_interval = self._get_min_update_interval()
 
         return True
+
+    def _is_valid_mac_address(self, mac: str) -> bool:
+        """Validate MAC address format (XX:XX:XX:XX:XX:XX)."""
+        pattern = r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$'
+        return bool(re.match(pattern, mac))
+    
+    def _check_bluetooth_integration(self) -> None:
+        """Check if Home Assistant's Bluetooth integration is properly configured."""
+        try:
+            from homeassistant.components.bluetooth import async_get_bluetooth
+            bluetooth_manager = async_get_bluetooth(self.hass)
+            
+            if not bluetooth_manager:
+                _LOGGER.error(
+                    "Home Assistant Bluetooth integration is not available. "
+                    "Please ensure the 'bluetooth' integration is configured and enabled."
+                )
+                return
+            
+            # Check for available adapters
+            adapters = getattr(bluetooth_manager, 'adapters', {})
+            if not adapters:
+                _LOGGER.warning(
+                    "No Bluetooth adapters found. Ensure your system has a working Bluetooth adapter "
+                    "and the bluetooth integration has discovered it."
+                )
+            else:
+                _LOGGER.info(
+                    "Bluetooth integration OK: Found %d adapter(s): %s", 
+                    len(adapters), list(adapters.keys())
+                )
+                
+        except ImportError:
+            _LOGGER.error("Failed to import Bluetooth integration - check Home Assistant version compatibility")
+        except Exception as e:
+            _LOGGER.error("Error checking Bluetooth integration: %s", e, exc_info=True)
+    
+    async def _try_alternative_ble_discovery(self, address: str) -> None:
+        """Try alternative methods to discover the BLE device."""
+        try:
+            from homeassistant.components.bluetooth import async_discovered_service_info
+            
+            # Check if device has been discovered recently
+            discovered_devices = async_discovered_service_info(self.hass, connectable=True)
+            
+            # Look for our target device in discovered devices
+            target_device = None
+            for device_info in discovered_devices:
+                if device_info.address.upper() == address.upper():
+                    target_device = device_info
+                    break
+            
+            if target_device:
+                _LOGGER.info(
+                    "Device %s found in discovered devices but not available via async_ble_device_from_address. "
+                    "Device info: name=%s, rssi=%s", 
+                    address, target_device.name, getattr(target_device, 'rssi', 'unknown')
+                )
+            else:
+                _LOGGER.info(
+                    "Device %s not found in %d discovered devices. "
+                    "Available devices: %s", 
+                    address, 
+                    len(discovered_devices),
+                    [f"{d.address}({d.name})" for d in discovered_devices[:5]]  # Show first 5
+                )
+                _LOGGER.info(
+                    "TROUBLESHOOTING TIPS for device %s:\n"
+                    "1. Ensure the Petkit fountain is powered ON and nearby (within 10 meters)\n"
+                    "2. Make sure the fountain is NOT connected to the Petkit app on your phone\n"
+                    "3. Try power cycling the fountain (turn off/on)\n"
+                    "4. In Home Assistant, go to Settings > Devices & Services > Bluetooth integration\n"
+                    "5. You may need to restart the Bluetooth integration or Home Assistant",
+                    address
+                )
+                
+        except Exception as e:
+            _LOGGER.debug("Failed alternative BLE discovery: %s", e)

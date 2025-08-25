@@ -320,7 +320,7 @@ class PetkitFountain(DeviceType):
             _LOGGER.info("Successfully started notifications on characteristic %s", PETKIT_READ_UUID)
             
             # Verify characteristics are available
-            services = await client.get_services()
+            services = client.services
             read_char_found = False
             write_char_found = False
             

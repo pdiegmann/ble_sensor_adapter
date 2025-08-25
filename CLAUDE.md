@@ -204,10 +204,71 @@ When entities show as unavailable:
 3. Look for BLE connection establishment and initialization sequence logs
 4. Monitor coordinator update cycles and device processing messages
 
+### Root Cause Analysis (Latest)
+**Issue**: `async_ble_device_from_address()` returns `None` causing "Device not currently reachable via Bluetooth"
+
+**Root Causes Identified**:
+1. **Home Assistant Bluetooth integration** may not be properly discovering the device
+2. **Device power/connectivity** - fountain may be off, connected to another app, or out of range
+3. **MAC address formatting** - inconsistent case or format issues
+4. **Bluetooth adapter issues** - no working adapters or scanning problems
+
+**Enhanced Diagnostics Added**:
+- Bluetooth integration health checks on startup
+- Alternative BLE device discovery methods
+- Comprehensive discovered devices listing
+- MAC address validation and normalization
+- Actionable troubleshooting guidance in logs
+
 ### Log Analysis
 Key log messages to look for:
 - `"Setting up BLE Sensor integration"` - Integration startup
+- `"Bluetooth integration OK: Found X adapter(s)"` - Bluetooth health check
 - `"Coordinator update cycle starting"` - Update cycles beginning
+- `"Device X not found in Y discovered devices"` - BLE discovery analysis
+- `"TROUBLESHOOTING TIPS for device"` - Actionable guidance
 - `"BLE connection established"` - Successful BLE connections
 - `"Successfully fetched and parsed data"` - Data retrieval success
-- `"Device X not currently reachable"` - BLE discovery issues
+
+## Troubleshooting Guide
+
+### "Device not currently reachable via Bluetooth"
+
+This is the most common issue. Follow these steps in order:
+
+#### Step 1: Check Device Status
+1. **Power**: Ensure your Petkit fountain is powered ON and has water
+2. **Proximity**: Device should be within 10 meters of Home Assistant
+3. **App Connection**: Disconnect from the Petkit mobile app if connected
+4. **Power Cycle**: Turn the fountain off and on again
+
+#### Step 2: Verify Home Assistant Bluetooth
+1. Go to **Settings > Devices & Services**
+2. Check that **Bluetooth** integration is installed and working
+3. Look for error messages in the Bluetooth integration
+4. If needed, reload or restart the Bluetooth integration
+
+#### Step 3: Check BLE Discovery
+Look in Home Assistant logs for these specific messages:
+- `"Bluetooth integration OK: Found X adapter(s)"` - Should show at least 1 adapter
+- `"Device [MAC] not found in Y discovered devices"` - Shows how many BLE devices are discovered
+- `"Available devices: [list]"` - Shows what devices ARE being discovered
+
+#### Step 4: Advanced Diagnostics
+If the above doesn't work:
+1. **Check MAC Address**: Ensure the configured MAC address exactly matches your device
+2. **Bluetooth Adapter**: Verify your system's Bluetooth adapter is working (try pairing another device)
+3. **Home Assistant Restart**: Sometimes a full Home Assistant restart helps reset BLE scanning
+4. **System Bluetooth**: On the host system, try `bluetoothctl scan on` to see if the device appears
+
+#### Step 5: Alternative Discovery
+The integration now checks multiple discovery methods and will show:
+- Whether the device appears in Home Assistant's discovered devices list
+- Signal strength (RSSI) if detected
+- Comparison with other nearby BLE devices
+
+### Device Shows as Unavailable After Connection
+This indicates BLE connection succeeded but data parsing failed:
+1. Check for initialization errors in logs
+2. Look for timeout or protocol errors
+3. Verify the device is a supported Petkit fountain model

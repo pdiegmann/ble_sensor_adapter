@@ -10,6 +10,7 @@ class DataUpdateCoordinator(Generic[T]):
         self.update_interval = update_interval
         self.update_method = update_method or self._async_update_data
         self.data = None
+        self.last_update_success = True
 
     async def _async_update_data(self):
         """Default update method - to be overridden by subclasses."""
@@ -18,6 +19,12 @@ class DataUpdateCoordinator(Generic[T]):
     async def async_refresh(self):
         self.data = await self.update_method()
         return self.data
+
+class CoordinatorEntity(Generic[T]):
+    """Base class for coordinator entities."""
+
+    def __init__(self, coordinator):
+        self.coordinator = coordinator
 
 class UpdateFailed(Exception):
     pass

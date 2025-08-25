@@ -33,7 +33,6 @@ class BaseDeviceEntity(CoordinatorEntity[BLESensorCoordinator]):
             name=self._device_name,
             manufacturer="BLE Device",
             model="BLE Sensor",
-            via_device=(DOMAIN, "bluetooth"),
         )
 
     @property

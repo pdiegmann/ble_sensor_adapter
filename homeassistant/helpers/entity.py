@@ -1,3 +1,12 @@
+from typing import Any, Dict, Optional, Set, Tuple
+
+
+class DeviceInfo(Dict[str, Any]):
+    """Device info for device registry."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
 class EntityDescription:
     def __init__(self, key, name, device_class=None, state_class=None, native_unit_of_measurement=None, entity_category=None, icon=None, options=None):
         self.key = key

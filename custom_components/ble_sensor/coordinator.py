@@ -71,6 +71,8 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not self.device_configs:
             return result
 
+        _LOGGER.info("Coordinator update cycle starting for %d devices", len(self.device_configs))
+        
         # Try to update each device
         for device_config in self.device_configs:
             device_id = device_config.device_id
@@ -79,9 +81,13 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             # Skip devices that are not due for update yet
             if not self._is_update_due(device_id):
+                _LOGGER.info("Device %s not due for update yet (last update: %s, interval: %s)", 
+                           device_id, self._last_update.get(device_id, 'never'), device_config.polling_interval)
                 if device_id in self._device_data:
                     result[device_id] = self._device_data[device_id]
                 continue
+
+            _LOGGER.info("Processing device %s (%s) - due for update", device_id, address)
 
             # Get the device handler (simplified - we know it's Petkit Fountain)
             device_handler = get_device_type()  # Always returns Petkit Fountain handler
@@ -92,8 +98,8 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
             if not ble_device:
-                _LOGGER.debug(
-                    "Device %s (%s) not currently reachable",
+                _LOGGER.warning(
+                    "Device %s (%s) not currently reachable via Bluetooth",
                     device_config.name,
                     address
                 )
@@ -112,7 +118,7 @@ class BLESensorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
                     # Update last successful update timestamp
                     self._last_update[device_id] = time.time()
-                    _LOGGER.debug("Successfully updated device %s with data: %s", device_id, data)
+                    _LOGGER.info("Successfully updated device %s with data: %s", device_id, data)
                 else:
                     # No data received, mark device as unavailable
                     self._device_status[device_id] = False

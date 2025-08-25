@@ -28,11 +28,14 @@ async def async_setup(hass: HomeAssistant, config: Config):
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up this integration using UI."""
+    _LOGGER.info("Setting up BLE Sensor integration with entry ID: %s", entry.entry_id)
     if hass.data.get(DOMAIN) is None:
         hass.data.setdefault(DOMAIN, {})
 
     # Get devices from config entry data
     devices = entry.data.get(CONF_DEVICES, [])
+    _LOGGER.info("Found %d devices in config entry data", len(devices))
+    
     if not devices:
         # Fallback for single device config (legacy support)
         from custom_components.ble_sensor.utils.const import (CONF_DEVICE_TYPE,
@@ -44,11 +47,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 "name": f"Device {entry.data[CONF_MAC]}",
                 "id": entry.data[CONF_MAC]
             }]
+            _LOGGER.info("Using legacy single device config: %s", devices[0])
 
     update_interval = timedelta(
         seconds=entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     )
 
+    _LOGGER.info("Creating coordinator with update interval: %s", update_interval)
     coordinator = BLESensorCoordinator(
         hass,
         _LOGGER,
@@ -58,8 +63,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     # Store coordinator in hass data
     hass.data[DOMAIN][entry.entry_id] = coordinator
+    _LOGGER.info("Coordinator created and stored with %d devices", len(coordinator.device_configs))
 
     # Set up platforms
+    _LOGGER.info("Setting up platforms: %s", PLATFORMS)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Add update listener

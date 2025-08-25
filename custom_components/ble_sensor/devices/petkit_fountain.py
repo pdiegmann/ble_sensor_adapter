@@ -393,6 +393,14 @@ class PetkitFountain(DeviceType):
 
     async def async_custom_fetch_data(self, ble_device) -> dict[str, Any] | None:
         """Fetch data from the device."""
+        _LOGGER.info("Starting data fetch for device %s", ble_device.address)
+        
+        # Reset initialization state for each new connection
+        self._is_initialized = False
+        self._device_id_bytes = None
+        self._secret = None
+        self._expected_responses.clear()
+        
         client = None
         try:
             async with asyncio.timeout(30):
@@ -403,11 +411,12 @@ class PetkitFountain(DeviceType):
                     timeout=10.0
                 )
 
-                # Initialize if not already done
-                if not self._is_initialized:
-                    if not await self.async_custom_initialization(client):
-                        _LOGGER.error("Failed to initialize device")
-                        return None
+                _LOGGER.info("BLE connection established to %s", ble_device.address)
+
+                # Always initialize for each session
+                if not await self.async_custom_initialization(client):
+                    _LOGGER.error("Failed to initialize device %s", ble_device.address)
+                    return None
 
                 # Fetch battery level
                 battery_payload = await self._send_command_with_retry(
@@ -426,6 +435,7 @@ class PetkitFountain(DeviceType):
 
                 # Process payloads and return a dictionary of sensor values
                 data = self.parse_raw_data(battery_payload, state_payload, config_payload)
+                _LOGGER.info("Successfully fetched and parsed data for %s: %s", ble_device.address, data)
                 return data
 
         except asyncio.TimeoutError:

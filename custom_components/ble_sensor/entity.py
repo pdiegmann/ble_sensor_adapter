@@ -38,7 +38,5 @@ class BaseDeviceEntity(CoordinatorEntity[BLESensorCoordinator]):
     @property
     def available(self) -> bool:
         """Return True if entity is available."""
-        return (
-            self.coordinator.last_update_success and
-            self.coordinator.is_device_available(self._device_id)
-        )
+        # Focus on device-specific availability rather than global coordinator success
+        return self.coordinator.is_device_available(self._device_id)

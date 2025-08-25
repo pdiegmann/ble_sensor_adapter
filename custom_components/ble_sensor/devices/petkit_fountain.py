@@ -71,6 +71,32 @@ NORMAL_COMMAND_TIMEOUT = 10  # seconds for normal operation commands
 RETRY_DELAY = 2  # seconds between retries
 
 class PetkitFountain(DeviceType):
+    async def sync_sequence_on_connect(self, client: BleakClient) -> None:
+        """Attempt to sync the sequence number with the device on connection."""
+        # Try to read the device's expected sequence from service data or by listening for the first notification
+        _LOGGER.info("[SEQ SYNC] Attempting to sync sequence number on connection.")
+        # Listen for unsolicited notifications for a short period
+        try:
+            notifications = []
+            for _ in range(5):
+                notification = await client.read_gatt_char(PETKIT_READ_UUID)
+                if notification and len(notification) > 4:
+                    seq = notification[3]
+                    cmd = notification[4]
+                    _LOGGER.info("[SEQ SYNC] Received notification during sync: seq=%d, cmd=%d, data=%s", seq, cmd, binascii.hexlify(notification).decode())
+                    notifications.append((seq, cmd))
+            if notifications:
+                # Use the highest sequence seen + 1 as our starting point
+                max_seq = max(seq for seq, _ in notifications)
+                _LOGGER.info("[SEQ SYNC] Setting initial sequence to %d (device's last seen + 1)", (max_seq + 1) % 256)
+                self._sequence = (max_seq + 1) % 256
+            else:
+                _LOGGER.info("[SEQ SYNC] No notifications received during sync; starting sequence at 0.")
+                self._sequence = 0
+        except Exception as ex:
+            _LOGGER.warning("[SEQ SYNC] Exception during sequence sync: %s", ex)
+            self._sequence = 0
+
     """Petkit Fountain device type implementation."""
 
     def __init__(self) -> None:
@@ -223,7 +249,9 @@ class PetkitFountain(DeviceType):
 
     def _increment_sequence(self):
         """Increment and wrap the command sequence number."""
+        old_seq = self._sequence
         self._sequence = (self._sequence + 1) % 256
+        _LOGGER.debug("[SEQ] Incremented sequence from %d to %d", old_seq, self._sequence)
 
     # Methods to handle setting values
     async def async_set_power_status(self, client: BleakClient, state: bool) -> bool:
@@ -372,6 +400,11 @@ class PetkitFountain(DeviceType):
 
     async def _try_device_initialization(self, client: BleakClient) -> bool:
         """Helper to split out the main initialization steps for cognitive complexity."""
+        # --- Sequence sync before any commands ---
+        _LOGGER.info("[INIT] Syncing sequence with device before initialization...")
+        await self.sync_sequence_on_connect(client)
+        _LOGGER.info("[INIT] Sequence after sync: %d", self._sequence)
+
         # 1. Retry get_device_details until valid
         details_payload = None
         for _ in range(5):
@@ -676,27 +709,22 @@ class PetkitFountain(DeviceType):
     async def _notification_handler(self, characteristic, data):
         """Handle BLE notifications."""
         data_hex = binascii.hexlify(bytes(data)).decode()
-        _LOGGER.info("Received BLE notification: %s (len=%d)", data_hex, len(data))
+        _LOGGER.info("[NOTIFY] Received BLE notification: %s (len=%d)", data_hex, len(data))
 
         if len(data) < 6:
-            _LOGGER.warning("Received malformed notification: %s", data_hex)
+            _LOGGER.warning("[NOTIFY] Received malformed notification: %s", data_hex)
             return
 
         seq = data[3]
         response_cmd = data[4]
-        _LOGGER.info("Parsed notification: seq=%d, cmd=%d", seq, response_cmd)
+        _LOGGER.info("[NOTIFY] Parsed notification: seq=%d, cmd=%d, expected sequences: %s", seq, response_cmd, list(self._expected_responses.keys()))
         
         if seq in self._expected_responses:
             future = self._expected_responses[seq]
             if not future.done():
-                _LOGGER.info("Setting result for expected response seq %d", seq)
+                _LOGGER.info("[NOTIFY] Setting result for expected response seq %d", seq)
                 future.set_result(bytes(data))
             else:
-                _LOGGER.warning("Future already done for seq %d", seq)
+                _LOGGER.warning("[NOTIFY] Future already done for seq %d", seq)
         else:
-            if response_cmd == 1:
-                _LOGGER.debug("Received benign unsolicited notification for sequence %d (cmd %d), expected sequences: %s",
-                              seq, response_cmd, list(self._expected_responses.keys()))
-            else:
-                _LOGGER.warning("Received unsolicited notification for sequence %d (cmd %d), expected sequences: %s",
-                                seq, response_cmd, list(self._expected_responses.keys()))
+            _LOGGER.warning("[NOTIFY] Unsolicited notification: seq=%d, cmd=%d, expected sequences: %s", seq, response_cmd, list(self._expected_responses.keys()))

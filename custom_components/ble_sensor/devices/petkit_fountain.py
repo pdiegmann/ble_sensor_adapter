@@ -204,13 +204,14 @@ class PetkitFountain(DeviceType):
     # Command building methods
     @staticmethod
     def _build_command(seq: int, cmd: int, type_val: int, data: list[int]) -> bytes:
-        """Builds the byte command to send to the device."""
-        checksum = 0
-        command_bytes = [85, 170, len(data) + 4, seq, cmd, type_val] + data
-        for byte_val in command_bytes[2:]:
-            checksum ^= byte_val
-        command_bytes.append(checksum)
-        return bytes(command_bytes)
+        """Builds the byte command to send to the device (PetkitW5BLEMQTT compatible)."""
+        # PetkitW5BLEMQTT uses header [250,252,253], end byte [251]
+        header = [250, 252, 253]  # 0xFA, 0xFC, 0xFD
+        end_byte = [251]          # 0xFB
+        length = len(data)
+        start_data = 0
+        command = header + [cmd, type_val, seq, length, start_data] + data + end_byte
+        return bytes(command)
 
     @staticmethod
     def _time_in_bytes() -> list[int]:

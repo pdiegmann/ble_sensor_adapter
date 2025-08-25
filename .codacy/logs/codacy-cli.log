@@ -1,0 +1,2 @@
+2025-08-25T12:47:51+02:00 [INFO] (codacy-cli-v2/cli-v2.go:27) Starting Codacy CLI version=1.0.0-main.353.sha.3e35fe8 (3e35fe8) built at 2025-08-08T09:30:04Z
+2025-08-25T12:47:51+02:00 [INFO] (codacy-cli-v2/cmd/root.go:34) Executing CLI command args=[] command=init full_command=[/Users/philhennel/Library/Caches/Codacy/codacy-cli-v2/1.0.0-main.353.sha.3e35fe8/codacy-cli-v2 init --provider gh --organization pdiegmann --repository ble_sensor_adapter --api-token ***]
